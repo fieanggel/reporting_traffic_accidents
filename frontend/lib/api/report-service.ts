@@ -1,75 +1,131 @@
-export type AccidentReportPayload = {
-  reporterName: string;
-  location: string;
+import { apiFetch } from "@/lib/api/client";
+import type { AuthUser } from "@/lib/auth/session";
+
+export type ReportCategory = "Kecelakaan" | "Kemacetan";
+export type ReportStatus = "Pending" | "Proses" | "Selesai";
+
+export type ReportRecord = {
+  id: string;
+  category: ReportCategory;
   description: string;
-  occurredAt: string;
+  address: string;
   latitude: number;
   longitude: number;
-  photoUrl?: string;
+  image_url: string;
+  status: ReportStatus;
+  officer_id?: number | null;
+  created_at: string;
+  updated_at: string;
+  officer?: AuthUser | null;
 };
 
-type SimulatedReportRecord = {
-  reportId: string;
-  storedAt: string;
-  payload: AccidentReportPayload;
+export type CreateReportPayload = {
+  category: ReportCategory;
+  description: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  image_url?: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api";
-const SIMULATED_STORAGE_KEY = "simulated-rds-reports";
+export type AdminReportFilters = {
+  status?: ReportStatus;
+  startDate?: string;
+  endDate?: string;
+};
 
-function wait(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export type AdminUpdateReportPayload = {
+  status?: ReportStatus;
+  officer_id?: number;
+};
 
-export async function createAccidentReport(payload: AccidentReportPayload) {
-  const response = await fetch(`${API_BASE_URL}/reports`, {
+type ReportListResponse = {
+  data: ReportRecord[];
+};
+
+type ReportWriteResponse = {
+  message: string;
+  data: ReportRecord;
+};
+
+export async function createPublicReport(
+  payload: CreateReportPayload,
+): Promise<ReportRecord> {
+  const response = await apiFetch<ReportWriteResponse>("/reports", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
     body: JSON.stringify(payload),
   });
 
-  if (!response.ok) {
-    throw new Error("Gagal mengirim laporan kecelakaan.");
-  }
-
-  return response.json();
+  return response.data;
 }
 
-export async function simulateReportInsertToRds(
-  payload: AccidentReportPayload,
-) {
-  await wait(900);
-
-  const reportId = `RPT-${Date.now().toString().slice(-8)}`;
-  const storedAt = new Date().toISOString();
-  const record: SimulatedReportRecord = {
-    reportId,
-    storedAt,
-    payload,
-  };
-
-  if (typeof window !== "undefined") {
-    try {
-      const previousRaw = localStorage.getItem(SIMULATED_STORAGE_KEY);
-      const previous = previousRaw
-        ? (JSON.parse(previousRaw) as SimulatedReportRecord[])
-        : [];
-
-      previous.unshift(record);
-      localStorage.setItem(
-        SIMULATED_STORAGE_KEY,
-        JSON.stringify(previous.slice(0, 40)),
-      );
-    } catch {
-      // Ignore localStorage errors in private browsing modes.
-    }
+export async function getAdminReports(
+  token: string,
+  filters: AdminReportFilters = {},
+): Promise<ReportRecord[]> {
+  const params = new URLSearchParams();
+  if (filters.status) {
+    params.set("status", filters.status);
+  }
+  if (filters.startDate) {
+    params.set("start_date", filters.startDate);
+  }
+  if (filters.endDate) {
+    params.set("end_date", filters.endDate);
   }
 
-  return {
-    reportId,
-    storedAt,
-  };
+  const query = params.toString();
+  const endpoint = query ? `/admin/reports?${query}` : "/admin/reports";
+  const response = await apiFetch<ReportListResponse>(endpoint, {
+    method: "GET",
+    token,
+  });
+
+  return response.data;
+}
+
+export async function updateAdminReport(
+  token: string,
+  reportID: string,
+  payload: AdminUpdateReportPayload,
+): Promise<ReportRecord> {
+  const response = await apiFetch<ReportWriteResponse>(`/admin/reports/${reportID}`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload),
+  });
+
+  return response.data;
+}
+
+export async function getOfficerReports(
+  token: string,
+  status?: ReportStatus,
+): Promise<ReportRecord[]> {
+  const endpoint = status
+    ? `/officer/reports?status=${encodeURIComponent(status)}`
+    : "/officer/reports";
+
+  const response = await apiFetch<ReportListResponse>(endpoint, {
+    method: "GET",
+    token,
+  });
+
+  return response.data;
+}
+
+export async function completeOfficerReport(
+  token: string,
+  reportID: string,
+): Promise<ReportRecord> {
+  const response = await apiFetch<ReportWriteResponse>(
+    `/officer/reports/${reportID}/complete`,
+    {
+      method: "PUT",
+      token,
+      body: JSON.stringify({}),
+    },
+  );
+
+  return response.data;
 }

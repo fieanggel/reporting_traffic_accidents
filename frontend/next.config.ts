@@ -6,7 +6,7 @@ const nextConfig: NextConfig = {
     serverActions: {
       allowedOrigins: ["192.168.1.109:3000", "localhost:3000"],
     },
-  } as any, // 'as any' biar TypeScript nggak rewel kalau versinya belum cocok
+  },
   
   webpack: (config) => {
     config.resolve.fallback = { fs: false };

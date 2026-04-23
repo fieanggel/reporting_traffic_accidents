@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AlertTriangle, LogIn, Menu, PhoneCall, X } from "lucide-react";
 import { useEffect, useState } from "react";
+
+import { clearSession, getSession } from "@/lib/auth/session";
 
 const navItems = [
   { href: "#beranda", label: "Beranda" },
@@ -15,16 +17,15 @@ const navItems = [
 
 export default function Navbar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const hideNavbar = pathname?.startsWith("/dashboard");
+  const session = getSession();
+
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [activeSection, setActiveSection] = useState(
     pathname === "/lapor" ? "/lapor" : navItems[0].href,
   );
-
-  // --- LOGIKA BARU: SEMBUNYIKAN NAVBAR DI DASHBOARD ---
-  if (pathname?.startsWith("/dashboard")) {
-    return null;
-  }
 
   const resolveHref = (href: string) => {
     if (!href.startsWith("#")) {
@@ -64,7 +65,6 @@ export default function Navbar() {
       }
     };
 
-    updateNavbarState();
     window.addEventListener("scroll", updateNavbarState, { passive: true });
     window.addEventListener("resize", closeOnDesktop);
 
@@ -85,6 +85,19 @@ export default function Navbar() {
     activeSection === href
       ? "bg-primary text-white shadow-[0_8px_20px_rgba(175,16,26,0.32)]"
       : "text-slate-700 hover:bg-slate-100";
+
+  const dashboardHref =
+    session?.user.role === "officer" ? "/dashboard/officer" : "/dashboard";
+
+  const handleLogout = () => {
+    clearSession();
+    setMobileOpen(false);
+    router.push("/");
+  };
+
+  if (hideNavbar) {
+    return null;
+  }
 
   return (
     <header
@@ -128,13 +141,32 @@ export default function Navbar() {
         </ul>
 
         <div className="hidden items-center gap-3 md:flex">
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-semibold text-secondary transition hover:-translate-y-0.5 hover:bg-secondary/15"
-          >
-            <LogIn className="h-4 w-4" />
-            Login Petugas
-          </Link>
+          {session ? (
+            <>
+              <Link
+                href={dashboardHref}
+                className="inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-semibold text-secondary transition hover:-translate-y-0.5 hover:bg-secondary/15"
+              >
+                <LogIn className="h-4 w-4" />
+                Buka Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="inline-flex items-center gap-2 rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:-translate-y-0.5 hover:bg-red-100"
+              >
+                Keluar
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              className="inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-semibold text-secondary transition hover:-translate-y-0.5 hover:bg-secondary/15"
+            >
+              <LogIn className="h-4 w-4" />
+              Login Petugas
+            </Link>
+          )}
           <Link
             href="tel:112"
             className="inline-flex items-center gap-2 rounded-full bg-primary-container px-5 py-2.5 text-sm font-semibold text-on-primary-container shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:opacity-95"
@@ -178,14 +210,34 @@ export default function Navbar() {
               </li>
             ))}
           </ul>
-          <Link
-            href="/login"
-            onClick={() => setMobileOpen(false)}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary transition hover:bg-secondary/15"
-          >
-            <LogIn className="h-4 w-4" />
-            Login Petugas
-          </Link>
+          {session ? (
+            <>
+              <Link
+                href={dashboardHref}
+                onClick={() => setMobileOpen(false)}
+                className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary transition hover:bg-secondary/15"
+              >
+                <LogIn className="h-4 w-4" />
+                Buka Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+              >
+                Keluar
+              </button>
+            </>
+          ) : (
+            <Link
+              href="/login"
+              onClick={() => setMobileOpen(false)}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary transition hover:bg-secondary/15"
+            >
+              <LogIn className="h-4 w-4" />
+              Login Petugas
+            </Link>
+          )}
           <Link
             href="tel:112"
             onClick={() => setMobileOpen(false)}

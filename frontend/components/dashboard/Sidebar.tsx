@@ -5,13 +5,20 @@ import { usePathname } from "next/navigation";
 import { LayoutDashboard, FileStack, Map as MapIcon, LogOut, Siren } from "lucide-react";
 import { motion } from "framer-motion";
 
+import type { AuthUser } from "@/lib/auth/session";
+
 const menuItems = [
   { name: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { name: "Daftar Laporan", href: "/dashboard/reports", icon: FileStack },
   { name: "Peta Pantauan", href: "/dashboard/map", icon: MapIcon },
 ];
 
-export default function Sidebar() {
+type SidebarProps = {
+  currentUser: AuthUser;
+  onLogout: () => void;
+};
+
+export default function Sidebar({ currentUser, onLogout }: SidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -52,7 +59,17 @@ export default function Sidebar() {
         </nav>
 
         <div className="mt-auto pt-6 border-t border-slate-900">
-          <button className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-red-500/10 hover:text-red-400">
+          <div className="mb-4 rounded-xl border border-slate-800 bg-slate-900/70 px-3 py-2">
+            <p className="truncate text-xs font-bold text-white">{currentUser.name}</p>
+            <p className="truncate text-[10px] uppercase tracking-[0.12em] text-slate-500">
+              {currentUser.username}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+          >
             <div className="p-2 rounded-lg bg-slate-900 group-hover:bg-red-500/20 transition-colors">
                <LogOut size={18} />
             </div>

@@ -1,8 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
-import { Navigation, MapPin, ExternalLink, Compass } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Navigation, ExternalLink, Compass } from "lucide-react";
+
+import { getErrorMessage } from "@/lib/api/client";
+import { getOfficerReports, type ReportRecord } from "@/lib/api/report-service";
+import { getSession } from "@/lib/auth/session";
 
 const LocationPickerMap = dynamic(
   () => import("@/components/report/LocationPickerMap"),
@@ -13,10 +17,47 @@ const LocationPickerMap = dynamic(
 );
 
 export default function OfficerMapPage() {
-  const targetLoc = { lat: -6.9147, lng: 107.6098, name: "Jl. Phh. Mustofa" };
+  const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadReports = async () => {
+      const session = getSession();
+      if (!session) {
+        return;
+      }
+
+      setIsLoading(true);
+      setErrorMessage(null);
+      try {
+        const data = await getOfficerReports(session.token);
+        setReports(data.filter((report) => report.status !== "Selesai"));
+      } catch (error) {
+        setErrorMessage(
+          getErrorMessage(error, "Gagal mengambil titik navigasi penugasan."),
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void loadReports();
+  }, []);
+
+  const targetReport = useMemo(() => {
+    return reports[0] ?? null;
+  }, [reports]);
 
   const openInGoogleMaps = () => {
-    window.open(`https://www.google.com/maps/dir/?api=1&destination=${targetLoc.lat},${targetLoc.lng}`, "_blank");
+    if (!targetReport) {
+      return;
+    }
+
+    window.open(
+      `https://www.google.com/maps/dir/?api=1&destination=${targetReport.latitude},${targetReport.longitude}`,
+      "_blank",
+    );
   };
 
   return (
@@ -28,23 +69,42 @@ export default function OfficerMapPage() {
           </div>
           <div>
             <h1 className="text-xl font-black text-slate-900 leading-tight">Navigasi Tugas</h1>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">{targetLoc.name}</p>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+              {targetReport ? targetReport.address : "Belum ada assignment aktif"}
+            </p>
           </div>
         </div>
         <button 
           onClick={openInGoogleMaps}
+          disabled={!targetReport}
           className="flex items-center gap-2 bg-slate-900 text-white px-5 py-3 rounded-xl text-xs font-bold shadow-lg hover:bg-primary transition-all"
         >
           <ExternalLink size={16} /> Buka Google Maps
         </button>
       </div>
 
+      {errorMessage && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {errorMessage}
+        </div>
+      )}
+
       <div className="relative flex-1 rounded-[2.5rem] overflow-hidden border-4 border-white shadow-2xl bg-slate-200">
-        <LocationPickerMap 
-          latitude={targetLoc.lat} 
-          longitude={targetLoc.lng} 
-          onLocationChange={() => {}} 
-        />
+        {isLoading ? (
+          <div className="flex h-full items-center justify-center bg-white text-sm font-semibold text-slate-500">
+            Memuat titik navigasi...
+          </div>
+        ) : targetReport ? (
+          <LocationPickerMap
+            latitude={targetReport.latitude}
+            longitude={targetReport.longitude}
+            onLocationChange={() => {}}
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-white text-sm font-semibold text-slate-500">
+            Tidak ada assignment aktif untuk ditampilkan di peta.
+          </div>
+        )}
         
         {/* Overlay Instruksi Taktis */}
         <div className="absolute bottom-6 left-6 right-6 z-[1000]">

@@ -3,22 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, LockKeyhole, LogIn } from "lucide-react";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
-const ALLOWED_USERS = {
-  admin: {
-    password: "admin",
-    label: "Admin",
-    redirectTo: "/",
-  },
-  petugas: {
-    password: "petugas",
-    label: "Petugas",
-    redirectTo: "/lapor",
-  },
+import { login } from "@/lib/api/auth-service";
+import { getErrorMessage } from "@/lib/api/client";
+import { getSession, saveSession } from "@/lib/auth/session";
+
+const roleLabelMap = {
+  admin: "Admin",
+  officer: "Petugas",
 } as const;
-
-type AllowedUser = keyof typeof ALLOWED_USERS;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -28,41 +22,49 @@ export default function LoginPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const normalizedUsername = useMemo(() => username.trim().toLowerCase(), [username]);
+  useEffect(() => {
+    const currentSession = getSession();
+    if (!currentSession) {
+      return;
+    }
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    const redirectTarget =
+      currentSession.user.role === "admin" ? "/dashboard" : "/dashboard/officer";
+    router.replace(redirectTarget);
+  }, [router]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
 
     if (isSubmitting) return;
 
-    if (!normalizedUsername || !password) {
+    if (!username.trim() || !password.trim()) {
       setErrorMessage("Isi username dan password terlebih dahulu.");
-      return;
-    }
-
-    if (!(normalizedUsername in ALLOWED_USERS)) {
-      setErrorMessage("User tidak ditemukan.");
-      return;
-    }
-
-    const account = ALLOWED_USERS[normalizedUsername as AllowedUser];
-
-    if (password !== account.password) {
-      setErrorMessage("Password salah untuk user tersebut.");
       return;
     }
 
     setIsSubmitting(true);
 
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("responcepat_user", normalizedUsername);
-      window.localStorage.setItem("responcepat_role", normalizedUsername);
-    }
+    try {
+      const session = await login({
+        username: username.trim(),
+        password,
+      });
 
-    setSuccessMessage(`Login berhasil sebagai ${account.label}. Mengarahkan...`);
-    router.replace(account.redirectTo);
+      saveSession(session);
+
+      const roleLabel = roleLabelMap[session.user.role] ?? "User";
+      setSuccessMessage(`Login berhasil sebagai ${roleLabel}. Mengarahkan...`);
+
+      const redirectTarget =
+        session.user.role === "admin" ? "/dashboard" : "/dashboard/officer";
+      router.replace(redirectTarget);
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, "Login gagal. Periksa kembali kredensial Anda."));
+      setIsSubmitting(false);
+    }
   };
 
   return (

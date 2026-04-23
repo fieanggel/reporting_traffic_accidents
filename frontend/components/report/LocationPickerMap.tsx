@@ -1,23 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
+type Coordinates = {
+  latitude: number;
+  longitude: number;
+};
+
+type LocationPickerMapProps = {
+  latitude: number;
+  longitude: number;
+  onLocationChange: (coordinates: Coordinates) => void;
+};
+
+type MapEventsProps = {
+  onLocationChange: (lat: number, lng: number) => void;
+};
+
+let isLeafletIconFixed = false;
+
 // Fix icon default Leaflet di Next.js
-const fixLeafletIcon = () => {
-  // @ts-ignore
-  delete L.Icon.Default.prototype._getIconUrl;
+const ensureLeafletIcon = () => {
+  if (isLeafletIconFixed || typeof window === "undefined") {
+    return;
+  }
+
+  const iconDefaultPrototype = L.Icon.Default.prototype as unknown as {
+    _getIconUrl?: unknown;
+  };
+  delete iconDefaultPrototype._getIconUrl;
+
   L.Icon.Default.mergeOptions({
     iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
     iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
     shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
   });
+
+  isLeafletIconFixed = true;
 };
 
 // Kompnen untuk menghandle klik pada area peta
-function MapEvents({ onLocationChange }: { onLocationChange: (lat: number, lng: number) => void }) {
+function MapEvents({ onLocationChange }: MapEventsProps) {
   const map = useMap();
   
   useMapEvents({
@@ -37,15 +63,12 @@ function MapEvents({ onLocationChange }: { onLocationChange: (lat: number, lng: 
   return null;
 }
 
-export default function LocationPickerMap({ latitude, longitude, onLocationChange }: any) {
-  const [isClient, setIsClient] = useState(false);
-
-  useEffect(() => {
-    fixLeafletIcon();
-    setIsClient(true);
-  }, []);
-
-  if (!isClient) return null;
+export default function LocationPickerMap({
+  latitude,
+  longitude,
+  onLocationChange,
+}: LocationPickerMapProps) {
+  ensureLeafletIcon();
 
   return (
     <div className="relative h-full w-full min-h-[300px]">
@@ -66,8 +89,9 @@ export default function LocationPickerMap({ latitude, longitude, onLocationChang
           position={[latitude, longitude]}
           draggable={true}
           eventHandlers={{
-            dragend: (e) => {
-              const latlng = e.target.getLatLng();
+            dragend: (event) => {
+              const marker = event.target as L.Marker;
+              const latlng = marker.getLatLng();
               onLocationChange({ latitude: latlng.lat, longitude: latlng.lng });
             },
           }}

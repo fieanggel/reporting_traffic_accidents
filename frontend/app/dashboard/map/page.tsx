@@ -1,9 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { motion } from "framer-motion";
-import { Map as MapIcon, ShieldAlert, Navigation, Layers } from "lucide-react";
-
+import { Map as MapIcon, Navigation, Layers } from "lucide-react";
 // Load peta secara dinamis agar tidak error SSR
 const LocationPickerMap = dynamic(
   () => import("@/components/report/LocationPickerMap"),

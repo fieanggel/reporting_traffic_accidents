@@ -1,8 +1,15 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import { Loader2, LocateFixed, MapPin, SendHorizontal, Navigation, AlertCircle, Car } from "lucide-react";
+
+import { getErrorMessage } from "@/lib/api/client";
+import {
+  createPublicReport,
+  type ReportCategory,
+} from "@/lib/api/report-service";
+import { uploadFileToS3 } from "@/lib/s3/upload-service";
 
 const LocationPickerMap = dynamic(
   () => import("./report/LocationPickerMap"),
@@ -20,7 +27,13 @@ const LocationPickerMap = dynamic(
 export default function ReportForm() {
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
-  const [category, setCategory] = useState("Kecelakaan"); // State kategori baru
+  const [category, setCategory] = useState<ReportCategory>("Kecelakaan");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [coordinates, setCoordinates] = useState({ 
     latitude: -6.914744, 
     longitude: 107.635873 
@@ -37,9 +50,68 @@ export default function ReportForm() {
     }
   };
 
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
+
+    if (!description.trim()) {
+      setFeedback({
+        type: "error",
+        message: "Deskripsi kejadian wajib diisi.",
+      });
+      return;
+    }
+
+    if (!address.trim()) {
+      setFeedback({
+        type: "error",
+        message: "Nama jalan atau patokan lokasi wajib diisi.",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setFeedback(null);
+
+    try {
+      let imageURL = "";
+      if (photoFile) {
+        imageURL = await uploadFileToS3(photoFile);
+      }
+
+      const report = await createPublicReport({
+        category,
+        description: description.trim(),
+        address: address.trim(),
+        latitude: coordinates.latitude,
+        longitude: coordinates.longitude,
+        image_url: imageURL,
+      });
+
+      setFeedback({
+        type: "success",
+        message: `Laporan berhasil dikirim dengan ID ${report.id}.`,
+      });
+
+      setDescription("");
+      setAddress("");
+      setPhotoFile(null);
+    } catch (error) {
+      setFeedback({
+        type: "error",
+        message: getErrorMessage(error, "Gagal mengirim laporan. Silakan coba lagi."),
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <article className="reveal delay-2 rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-2xl backdrop-blur md:p-8">
-      <div className="space-y-6">
+      <form className="space-y-6" onSubmit={handleSubmit}>
         
         {/* PILIHAN KATEGORI (Baru) */}
         <div className="space-y-3">
@@ -96,6 +168,22 @@ export default function ReportForm() {
           </div>
         </div>
 
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-slate-800">Foto Kejadian (Opsional)</label>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              setPhotoFile(file);
+            }}
+            className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-700 outline-none focus:ring-4 focus:ring-primary/10"
+          />
+          {photoFile && (
+            <p className="text-xs font-medium text-slate-500">File terpilih: {photoFile.name}</p>
+          )}
+        </div>
+
         {/* Bagian Peta Visual */}
         <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/50 p-5">
           <div className="flex items-center justify-between">
@@ -123,11 +211,27 @@ export default function ReportForm() {
           </div>
         </div>
 
-        <button className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 text-lg font-bold text-white transition hover:bg-primary active:scale-[0.98] shadow-xl shadow-slate-900/20">
+        {feedback && (
+          <div
+            className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+              feedback.type === "success"
+                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                : "border-red-200 bg-red-50 text-red-700"
+            }`}
+          >
+            {feedback.message}
+          </div>
+        )}
+
+        <button
+          type="submit"
+          disabled={isSubmitting}
+          className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 text-lg font-bold text-white transition hover:bg-primary active:scale-[0.98] shadow-xl shadow-slate-900/20 disabled:cursor-not-allowed disabled:opacity-70"
+        >
           <SendHorizontal className="h-5 w-5" />
-          Kirim Laporan {category}
+          {isSubmitting ? "Mengirim Laporan..." : `Kirim Laporan ${category}`}
         </button>
-      </div>
+      </form>
     </article>
   );
 }

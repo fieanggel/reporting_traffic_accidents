@@ -1,23 +1,157 @@
 "use client";
 
-import { useState } from "react";
-import { Search, Filter, Eye, MoreVertical, MapPin, ChevronRight } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Search, Filter, Eye } from "lucide-react";
 import { motion } from "framer-motion";
-import ReportDetailModal from "../ReportDetailModal";
 
-const dummyReports = [
-  { id: "REP-001", date: "2026-04-23", desc: "Kecelakaan beruntun melibatkan 3 kendaraan roda empat.", location: "-6.9147, 107.6098", status: "Pending" },
-  { id: "REP-002", date: "2026-04-23", desc: "Kemacetan parah akibat pohon tumbang menutupi jalan.", location: "-6.9001, 107.6122", status: "Proses" },
-  { id: "REP-003", date: "2026-04-22", desc: "Motor tergelincir akibat tumpahan solar di aspal.", location: "-6.9210, 107.6331", status: "Selesai" },
+import ReportDetailModal from "../ReportDetailModal";
+import { getErrorMessage } from "@/lib/api/client";
+import { getAdminOfficers, type OfficerRecord } from "@/lib/api/officer-service";
+import {
+  getAdminReports,
+  updateAdminReport,
+  type AdminUpdateReportPayload,
+  type ReportRecord,
+  type ReportStatus,
+} from "@/lib/api/report-service";
+import { getSession } from "@/lib/auth/session";
+
+const statusOptions: Array<{ label: string; value: "" | ReportStatus }> = [
+  { label: "Semua", value: "" },
+  { label: "Pending", value: "Pending" },
+  { label: "Proses", value: "Proses" },
+  { label: "Selesai", value: "Selesai" },
 ];
 
 export default function ReportsPage() {
-  const [selectedReport, setSelectedReport] = useState<any>(null);
+  const [reports, setReports] = useState<ReportRecord[]>([]);
+  const [officers, setOfficers] = useState<OfficerRecord[]>([]);
+  const [selectedReport, setSelectedReport] = useState<ReportRecord | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [searchKeyword, setSearchKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"" | ReportStatus>("");
 
-  const handleOpenDetail = (item: any) => {
+  const fetchReports = async (filter: "" | ReportStatus) => {
+    const session = getSession();
+    if (!session) {
+      return [] as ReportRecord[];
+    }
+
+    return getAdminReports(session.token, {
+      status: filter || undefined,
+    });
+  };
+
+  const handleOpenDetail = (item: ReportRecord) => {
     setSelectedReport(item);
     setIsModalOpen(true);
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadInitialReports = async () => {
+      try {
+        const loadedReports = await fetchReports(statusFilter);
+        if (!isMounted) {
+          return;
+        }
+        setReports(loadedReports);
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+        setErrorMessage(
+          getErrorMessage(error, "Gagal mengambil data laporan dari server."),
+        );
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void loadInitialReports();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [statusFilter]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadOfficers = async () => {
+      const session = getSession();
+      if (!session) {
+        return;
+      }
+
+      try {
+        const loadedOfficers = await getAdminOfficers(session.token);
+        if (!isMounted) {
+          return;
+        }
+        setOfficers(loadedOfficers);
+      } catch {
+        if (isMounted) {
+          setOfficers([]);
+        }
+      }
+    };
+
+    void loadOfficers();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const visibleReports = useMemo(() => {
+    const keyword = searchKeyword.trim().toLowerCase();
+    if (!keyword) {
+      return reports;
+    }
+
+    return reports.filter((report) => {
+      return (
+        report.id.toLowerCase().includes(keyword) ||
+        report.description.toLowerCase().includes(keyword) ||
+        report.address.toLowerCase().includes(keyword) ||
+        report.category.toLowerCase().includes(keyword)
+      );
+    });
+  }, [reports, searchKeyword]);
+
+  const handleUpdateReport = async (payload: AdminUpdateReportPayload) => {
+    if (!selectedReport) {
+      return;
+    }
+
+    const session = getSession();
+    if (!session) {
+      return;
+    }
+
+    setIsSaving(true);
+    setIsLoading(true);
+    setErrorMessage(null);
+    try {
+      await updateAdminReport(session.token, selectedReport.id, payload);
+      setIsModalOpen(false);
+      const loadedReports = await fetchReports(statusFilter);
+      setReports(loadedReports);
+    } catch (error) {
+      setErrorMessage(
+        getErrorMessage(error, "Gagal memperbarui laporan. Silakan coba lagi."),
+      );
+    } finally {
+      setIsLoading(false);
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -34,13 +168,41 @@ export default function ReportsPage() {
         <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-white shadow-sm">
            <div className="relative">
              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-             <input className="pl-10 pr-4 py-2 bg-slate-50 rounded-xl text-sm outline-none w-64" placeholder="Cari ID Laporan..." />
+             <input
+               value={searchKeyword}
+               onChange={(event) => setSearchKeyword(event.target.value)}
+               className="pl-10 pr-4 py-2 bg-slate-50 rounded-xl text-sm outline-none w-64"
+               placeholder="Cari ID / lokasi / deskripsi..."
+             />
            </div>
-           <button className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-primary transition shadow-lg shadow-slate-900/10">
+           <button
+             type="button"
+             className="p-2.5 bg-slate-900 text-white rounded-xl hover:bg-primary transition shadow-lg shadow-slate-900/10"
+           >
              <Filter size={18} />
            </button>
+           <select
+             value={statusFilter}
+             onChange={(event) => {
+               setIsLoading(true);
+               setStatusFilter(event.target.value as "" | ReportStatus);
+             }}
+             className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 outline-none"
+           >
+             {statusOptions.map((status) => (
+               <option key={status.label} value={status.value}>
+                 {status.label}
+               </option>
+             ))}
+           </select>
         </div>
       </div>
+
+      {errorMessage && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+          {errorMessage}
+        </div>
+      )}
 
       <div className="rounded-[2.5rem] border border-white/70 bg-white/80 shadow-2xl shadow-slate-200/40 overflow-hidden backdrop-blur-md">
         <div className="overflow-x-auto">
@@ -50,20 +212,39 @@ export default function ReportsPage() {
                 <th className="px-8 py-6">Incident ID</th>
                 <th className="px-8 py-6">Waktu Kejadian</th>
                 <th className="px-8 py-6">Keterangan</th>
+                <th className="px-8 py-6">Kategori</th>
                 <th className="px-8 py-6">Status Laporan</th>
                 <th className="px-8 py-6 text-right">Tindakan</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {dummyReports.map((item) => (
+              {isLoading && (
+                <tr>
+                  <td className="px-8 py-10 text-center text-sm text-slate-500" colSpan={6}>
+                    Memuat data laporan...
+                  </td>
+                </tr>
+              )}
+              {!isLoading && visibleReports.length === 0 && (
+                <tr>
+                  <td className="px-8 py-10 text-center text-sm text-slate-500" colSpan={6}>
+                    Belum ada laporan yang cocok dengan filter.
+                  </td>
+                </tr>
+              )}
+              {!isLoading &&
+                visibleReports.map((item) => (
                 <tr key={item.id} className="group hover:bg-white transition-all cursor-pointer">
                   <td className="px-8 py-5">
                     <span className="font-black text-slate-900 flex items-center gap-2">
                         <div className="h-1.5 w-1.5 rounded-full bg-primary" /> {item.id}
                     </span>
                   </td>
-                  <td className="px-8 py-5 text-slate-500 text-sm font-medium">{item.date}</td>
-                  <td className="px-8 py-5 text-slate-600 text-sm max-w-[200px] truncate">{item.desc}</td>
+                  <td className="px-8 py-5 text-slate-500 text-sm font-medium">
+                    {new Date(item.created_at).toLocaleString("id-ID")}
+                  </td>
+                  <td className="px-8 py-5 text-slate-600 text-sm max-w-[280px] truncate">{item.description}</td>
+                  <td className="px-8 py-5 text-slate-600 text-sm font-semibold">{item.category}</td>
                   <td className="px-8 py-5">
                     <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border 
                       ${item.status === 'Pending' ? 'bg-red-50 text-red-600 border-red-100' : 
@@ -88,9 +269,13 @@ export default function ReportsPage() {
       </div>
 
       <ReportDetailModal 
+        key={selectedReport?.id ?? "report-modal"}
         isOpen={isModalOpen} 
         onClose={() => setIsModalOpen(false)} 
-        report={selectedReport} 
+        report={selectedReport}
+        officers={officers}
+        isSaving={isSaving}
+        onSubmit={handleUpdateReport}
       />
     </motion.div>
   );

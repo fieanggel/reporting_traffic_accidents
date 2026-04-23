@@ -1,30 +1,20 @@
+import { apiFetch } from "@/lib/api/client";
+
 export type PresignedUploadRequest = {
   fileName: string;
   contentType: string;
 };
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000/api";
-
 export async function requestPresignedUpload(
   payload: PresignedUploadRequest,
 ) {
-  const response = await fetch(`${API_BASE_URL}/uploads/presign`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    throw new Error("Gagal meminta URL upload S3.");
-  }
-
-  return response.json() as Promise<{
+  return apiFetch<{
     uploadUrl: string;
     fileUrl: string;
-  }>;
+  }>("/uploads/presign", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
 }
 
 function generateS3FileName(file: File) {

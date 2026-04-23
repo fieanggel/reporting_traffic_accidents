@@ -5,13 +5,23 @@ import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 import { ClipboardList, Map, History, LogOut, Siren, User } from "lucide-react";
 
+import type { AuthUser } from "@/lib/auth/session";
+
 const officerMenu = [
   { name: "Tugas Aktif", href: "/dashboard/officer", icon: ClipboardList },
   { name: "Peta Navigasi", href: "/dashboard/officer/map", icon: Map },
   { name: "Riwayat", href: "/dashboard/officer/history", icon: History },
 ];
 
-export default function OfficerSidebar() {
+type OfficerSidebarProps = {
+  currentUser: AuthUser;
+  onLogout: () => void;
+};
+
+export default function OfficerSidebar({
+  currentUser,
+  onLogout,
+}: OfficerSidebarProps) {
   const pathname = usePathname();
 
   return (
@@ -57,11 +67,18 @@ export default function OfficerSidebar() {
                 <User size={16} />
             </div>
             <div className="overflow-hidden text-ellipsis whitespace-nowrap">
-                <p className="text-xs font-bold text-white uppercase">Ahmad S.</p>
-                <p className="text-[10px] text-slate-500">Bripda • POL-8821</p>
+                <p className="text-xs font-bold text-white uppercase">{currentUser.name}</p>
+                <p className="text-[10px] text-slate-500">
+                  {currentUser.zone || "Wilayah belum diatur"}
+                  {currentUser.officer_id ? ` • ${currentUser.officer_id}` : ""}
+                </p>
             </div>
           </div>
-          <button className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-red-500/10 hover:text-red-400">
+          <button
+            type="button"
+            onClick={onLogout}
+            className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-slate-500 transition hover:bg-red-500/10 hover:text-red-400"
+          >
             <LogOut size={18} />
             Keluar Shift
           </button>

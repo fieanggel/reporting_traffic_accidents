@@ -1,195 +1,267 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
-  AlertCircle, 
-  CheckCircle2, 
-  Clock, 
-  Users, 
-  TrendingUp, 
-  Siren, 
-  UserCircle,
-  Plus,
-  Search,
-  MoreHorizontal
+  AlertCircle, CheckCircle2, Clock, Users, TrendingUp, 
+  UserCircle, Plus, X, UserPlus, Lock, Mail, Trash2, Edit3
 } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 
-// Data simulasi kategori insiden
-const categoryData = [
-  { name: 'Kecelakaan', value: 65, color: '#af101a' }, // Merah Primary
-  { name: 'Kemacetan', value: 35, color: '#005faf' },  // Biru Secondary
-];
-
-const weeklyData = [
-  { day: 'Sen', kecelakaan: 12, macet: 18 },
-  { day: 'Sel', kecelakaan: 19, macet: 12 },
-  { day: 'Rab', kecelakaan: 15, macet: 25 },
-  { day: 'Kam', kecelakaan: 22, macet: 10 },
-  { day: 'Jum', kecelakaan: 30, macet: 15 },
-];
+import { getDashboardStats, DashboardStats } from "@/lib/api/stats-service";
+import { apiFetch, getErrorMessage } from "@/lib/api/client";
+import { getSession } from "@/lib/auth/session";
 
 export default function DashboardPage() {
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState({ name: "User", role: "Admin" });
+  
+  // State untuk Modal CRUD
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [formOfficer, setFormOfficer] = useState({ name: "", username: "", password: "", role: "officer" });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const fetchData = async () => {
+    const session = getSession(); 
+    if (!session?.token) {
+      setLoading(false);
+      return;
+    }
+
+    if (session.user) {
+      setUserProfile({
+        name: session.user.name || "Admin",
+        role: session.user.role || "Super Admin"
+      });
+    }
+
+    try {
+      const data = await getDashboardStats(session.token);
+      setStats(data);
+    } catch (err) {
+      console.error("Gagal load data dashboard:", getErrorMessage(err, "Error"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    setMounted(true);
+    fetchData();
+  }, []);
+
+  // Fungsi Buka Modal Tambah
+  const openAddModal = () => {
+    setIsEditMode(false);
+    setSelectedId(null);
+    setFormOfficer({ name: "", username: "", password: "", role: "officer" });
+    setIsModalOpen(true);
+  };
+
+  // Fungsi Buka Modal Edit
+  const openEditModal = (officer: any) => {
+    setIsEditMode(true);
+    setSelectedId(officer.id);
+    setFormOfficer({ 
+      name: officer.name, 
+      username: officer.username, 
+      password: "", // Password dikosongkan saat edit kecuali mau diupdate
+      role: officer.role 
+    });
+    setIsModalOpen(true);
+  };
+
+  // Fungsi Submit (Create atau Update)
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    const session = getSession();
+
+    try {
+      const url = isEditMode ? `/admin/officers/${selectedId}` : "/admin/officers";
+      const method = isEditMode ? "PUT" : "POST";
+
+      await apiFetch(url, {
+        method: method,
+        token: session?.token,
+        body: JSON.stringify(formOfficer),
+      });
+
+      setIsModalOpen(false);
+      fetchData();
+      alert(isEditMode ? "Data petugas diperbarui!" : "Petugas berhasil ditambahkan!");
+    } catch (err) {
+      alert(getErrorMessage(err, "Gagal memproses data"));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Fungsi Hapus
+  const handleDeleteOfficer = async (id: number) => {
+    if (!confirm("Yakin mau hapus petugas ini?")) return;
+    const session = getSession();
+    try {
+      await apiFetch(`/admin/officers/${id}`, {
+        method: "DELETE",
+        token: session?.token,
+      });
+      fetchData();
+    } catch (err) {
+      alert(getErrorMessage(err, "Gagal menghapus petugas"));
+    }
+  };
+
+  if (!mounted) return null;
+
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-8 pb-10"
-    >
-      {/* HEADER USER BARU */}
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8 pb-10">
+      
+      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/40 p-6 rounded-[2rem] border border-white/60 backdrop-blur-md shadow-sm">
         <div className="flex items-center gap-4">
-          <div className="relative">
-            <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center text-white shadow-lg">
-              <UserCircle size={32} strokeWidth={1.5} />
-            </div>
-            <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 border-2 border-white"></div>
+          <div className="h-14 w-14 rounded-2xl bg-slate-900 flex items-center justify-center text-white shadow-lg">
+            <UserCircle size={32} />
           </div>
           <div>
-            <h2 className="text-xl font-black text-slate-900 tracking-tight">Raelqiansyah P.</h2>
-            <p className="text-xs font-bold text-primary uppercase tracking-[0.1em]">Super Admin Center</p>
+            <h2 className="text-xl font-bold text-slate-900">{userProfile.name}</h2>
+            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em]">{userProfile.role} Center</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-6">
-          <div className="text-right hidden sm:block">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status Server</p>
-            <div className="flex items-center gap-2 text-emerald-500 font-bold text-sm">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              RDS Connected
-            </div>
-          </div>
-          <button className="bg-slate-900 text-white px-5 py-3 rounded-2xl text-sm font-bold shadow-lg shadow-slate-900/20 hover:bg-primary transition-all flex items-center gap-2">
-            <Plus size={18} /> Tambah Petugas
-          </button>
-        </div>
+        <button 
+          onClick={openAddModal}
+          className="bg-slate-900 text-white px-6 py-3 rounded-2xl text-sm font-bold shadow-lg hover:bg-primary flex items-center gap-2 transition-all active:scale-95"
+        >
+          <Plus size={18} /> Tambah Petugas
+        </button>
       </div>
 
-      {/* STATS QUICK VIEW */}
+      {/* STATS CARDS */}
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        <StatsCard title="Total Insiden" value="128" icon={AlertCircle} color="text-primary" bg="bg-primary/10" />
-        <StatsCard title="Petugas Aktif" value="24" icon={Users} color="text-blue-600" bg="bg-blue-100" />
-        <StatsCard title="Pending" value="08" icon={Clock} color="text-amber-600" bg="bg-amber-100" />
-        <StatsCard title="Resolved" value="96" icon={CheckCircle2} color="text-emerald-600" bg="bg-emerald-100" />
+        <StatsCard title="Total Insiden" value={loading ? "..." : String(stats?.summary?.total_incidents || 0)} icon={AlertCircle} color="text-primary" bg="bg-primary/10" />
+        <StatsCard title="Petugas Aktif" value={loading ? "..." : String(stats?.summary?.active_officers || 0)} icon={Users} color="text-blue-600" bg="bg-blue-100" />
+        <StatsCard title="Pending" value={loading ? "..." : String(stats?.summary?.pending || 0)} icon={Clock} color="text-amber-600" bg="bg-amber-100" />
+        <StatsCard title="Resolved" value={loading ? "..." : String(stats?.summary?.resolved || 0)} icon={CheckCircle2} color="text-emerald-600" bg="bg-emerald-100" />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        {/* GRAFIK KATEGORI (KECELAKAN VS MACET) */}
-        <div className="rounded-[2.5rem] border border-white/70 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur">
-          <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-            <TrendingUp size={20} className="text-primary" /> Kategori Insiden
-          </h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoryData}
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {categoryData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="flex justify-center gap-6 mt-4">
-            {categoryData.map((item) => (
-              <div key={item.name} className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded-full" style={{ backgroundColor: item.color }}></div>
-                <span className="text-xs font-bold text-slate-600">{item.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* GRAFIK MINGGUAN */}
-        <div className="lg:col-span-2 rounded-[2.5rem] border border-white/70 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Analisis Mingguan</h3>
-          <div className="h-[250px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={weeklyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fontSize: 12}} />
-                <YAxis hide />
-                <Tooltip cursor={{fill: '#f8fafc'}} />
-                <Bar dataKey="kecelakaan" fill="#af101a" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="macet" fill="#005faf" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </div>
-
-      {/* CRUD PETUGAS PREVIEW */}
-      <div className="rounded-[2.5rem] border border-white/70 bg-white/80 p-8 shadow-2xl shadow-slate-200/50 backdrop-blur">
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
-          <h3 className="text-xl font-bold text-slate-900">Manajemen Petugas Lapangan</h3>
-          <div className="relative w-full sm:w-64">
-             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-             <input className="w-full pl-10 pr-4 py-2 bg-slate-100 rounded-xl text-sm outline-none focus:ring-2 focus:ring-primary/20" placeholder="Cari petugas..." />
-          </div>
-        </div>
-
+      {/* OFFICER TABLE */}
+      <div className="rounded-[2.5rem] bg-white p-8 shadow-sm border border-slate-100">
+        <h3 className="text-xl font-bold mb-8 flex items-center gap-3">
+          <Users className="text-primary" /> Manajemen Petugas
+        </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100">
                 <th className="pb-4">Nama Petugas</th>
-                <th className="pb-4">ID Anggota</th>
-                <th className="pb-4">Wilayah Tugas</th>
-                <th className="pb-4">Status</th>
+                <th className="pb-4">Username</th>
+                <th className="pb-4">Role</th>
                 <th className="pb-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              <OfficerRow name="Bripda Ahmad" id="POL-8821" zone="Sudirman" status="On Duty" />
-              <OfficerRow name="Bripka Siti" id="POL-8822" zone="Tomang" status="Standby" />
-              <OfficerRow name="Aiptu Bambang" id="POL-8823" zone="Kuningan" status="Break" />
+              {stats?.officers && stats.officers.length > 0 ? (
+                stats.officers.map((off: any) => (
+                  <tr key={off.id} className="group hover:bg-slate-50 transition">
+                    <td className="py-4 font-bold text-slate-800">{off.name}</td>
+                    <td className="py-4 text-sm text-slate-500">{off.username}</td>
+                    <td className="py-4">
+                      <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-500">
+                        {off.role}
+                      </span>
+                    </td>
+                    <td className="py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button 
+                          onClick={() => openEditModal(off)}
+                          className="p-2 text-slate-300 hover:text-blue-500 transition-colors"
+                        >
+                          <Edit3 size={18}/>
+                        </button>
+                        <button 
+                          onClick={() => handleDeleteOfficer(off.id)}
+                          className="p-2 text-slate-300 hover:text-red-500 transition-colors"
+                        >
+                          <Trash2 size={18}/>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={4} className="py-10 text-center text-slate-400 italic">Belum ada data petugas.</td></tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* MODAL (CREATE & EDIT) */}
+      <AnimatePresence>
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsModalOpen(false)} className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-md rounded-[2.5rem] bg-white p-8 shadow-2xl">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-slate-900">{isEditMode ? "Edit Data Petugas" : "Registrasi Petugas"}</h3>
+                <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Nama Lengkap</label>
+                  <div className="relative">
+                    <UserPlus className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                    <input required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                      value={formOfficer.name} onChange={(e) => setFormOfficer({...formOfficer, name: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Username</label>
+                  <div className="relative">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                    <input required className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                      value={formOfficer.username} onChange={(e) => setFormOfficer({...formOfficer, username: e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">
+                    {isEditMode ? "Password (Kosongkan jika tidak diubah)" : "Password"}
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
+                    <input required={!isEditMode} type="password" className="w-full pl-12 pr-4 py-4 bg-slate-50 rounded-2xl border border-slate-100 outline-none focus:ring-2 focus:ring-primary/20 transition-all" 
+                      value={formOfficer.password} onChange={(e) => setFormOfficer({...formOfficer, password: e.target.value})} />
+                  </div>
+                </div>
+
+                <button 
+                  disabled={isSubmitting}
+                  type="submit" 
+                  className="w-full py-4 mt-4 bg-slate-900 text-white rounded-2xl font-bold shadow-lg hover:bg-primary transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {isSubmitting ? "Sedang Memproses..." : isEditMode ? "Simpan Perubahan" : "Daftarkan Petugas"}
+                </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
 
-// Komponen Helper
 function StatsCard({ title, value, icon: Icon, color, bg }: any) {
   return (
-    <div className="rounded-[2rem] border border-white/70 bg-white/80 p-6 shadow-xl shadow-slate-200/20 backdrop-blur">
-      <div className="flex items-center gap-4">
-        <div className={`h-12 w-12 rounded-2xl ${bg} ${color} flex items-center justify-center`}>
-          <Icon size={24} />
-        </div>
-        <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</p>
-          <p className="text-2xl font-black text-slate-900">{value}</p>
-        </div>
-      </div>
+    <div className="rounded-[2rem] bg-white p-6 shadow-sm border border-slate-100 flex items-center gap-4">
+      <div className={`h-12 w-12 rounded-2xl ${bg} ${color} flex items-center justify-center`}><Icon size={24} /></div>
+      <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{title}</p><p className="text-2xl font-black text-slate-900">{value}</p></div>
     </div>
-  );
-}
-
-function OfficerRow({ name, id, zone, status }: any) {
-  const statusColor = status === "On Duty" ? "text-emerald-500 bg-emerald-50" : status === "Standby" ? "text-blue-500 bg-blue-50" : "text-slate-400 bg-slate-50";
-  return (
-    <tr className="group hover:bg-slate-50/50 transition">
-      <td className="py-4 font-bold text-slate-800">{name}</td>
-      <td className="py-4 text-sm text-slate-500">{id}</td>
-      <td className="py-4 text-sm text-slate-600">{zone}</td>
-      <td className="py-4">
-        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${statusColor}`}>{status}</span>
-      </td>
-      <td className="py-4 text-right">
-        <button className="p-2 text-slate-300 hover:text-slate-600 transition">
-          <MoreHorizontal size={20} />
-        </button>
-      </td>
-    </tr>
   );
 }
