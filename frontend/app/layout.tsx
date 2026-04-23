@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Public_Sans } from "next/font/google";
 import Navbar from "@/components/Navbar";
-import "leaflet/dist/leaflet.css";
-import "./globals.css";
+import "./globals.css"; // CSS Leaflet sudah ada di dalam sini
 
 const publicSans = Public_Sans({
   variable: "--font-public-sans",
@@ -22,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={publicSans.variable + " h-full antialiased"}>
+    <html lang="id" className={`${publicSans.variable} h-full antialiased`}>
       <body className="min-h-full bg-background font-sans text-foreground selection:bg-primary-container selection:text-on-primary-container">
         <div className="flex min-h-full flex-col">
           <Navbar />

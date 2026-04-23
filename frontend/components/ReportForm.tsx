@@ -1,351 +1,115 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
-import {
-  Camera,
-  CheckCircle2,
-  Loader2,
-  LocateFixed,
-  MapPin,
-  SendHorizontal,
-} from "lucide-react";
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
-import { simulateReportInsertToRds } from "@/lib/api/report-service";
-import { uploadFileToS3 } from "@/lib/s3/upload-service";
+import { useState } from "react";
+import { Loader2, LocateFixed, MapPin, SendHorizontal, Navigation } from "lucide-react";
 
 const LocationPickerMap = dynamic(
-  () => import("@/components/report/LocationPickerMap"),
-  {
+  () => import("./report/LocationPickerMap"),
+  { 
     ssr: false,
     loading: () => (
-      <div className="flex h-full items-center justify-center text-sm text-slate-500">
-        Memuat peta...
+      <div className="flex h-full w-full flex-col items-center justify-center bg-slate-50 italic text-slate-400">
+        <Loader2 className="mb-2 h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm">Menghubungkan ke satelit...</p>
       </div>
-    ),
-  },
+    )
+  }
 );
-
-type Coordinates = {
-  latitude: number;
-  longitude: number;
-};
-
-const INITIAL_COORDINATES: Coordinates = {
-  latitude: -6.200000,
-  longitude: 106.816666,
-};
-
-const MIN_DESCRIPTION_LENGTH = 20;
-
-function formatCoordinate(value: number) {
-  return value.toFixed(6);
-}
 
 export default function ReportForm() {
   const [description, setDescription] = useState("");
-  const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [coordinates, setCoordinates] =
-    useState<Coordinates>(INITIAL_COORDINATES);
-  const [geoMessage, setGeoMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [isLocating, setIsLocating] = useState(false);
-
-  const photoPreviewUrl = useMemo(
-    () => (photoFile ? URL.createObjectURL(photoFile) : null),
-    [photoFile],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (photoPreviewUrl) {
-        URL.revokeObjectURL(photoPreviewUrl);
-      }
-    };
-  }, [photoPreviewUrl]);
-
-  const handlePhotoChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null;
-
-    if (!file) {
-      setPhotoFile(null);
-      return;
-    }
-
-    if (!file.type.startsWith("image/")) {
-      setErrorMessage("File harus berupa gambar (jpg, png, webp, dll).");
-      return;
-    }
-
-    setErrorMessage(null);
-    setSuccessMessage(null);
-    setPhotoFile(file);
-  };
+  const [address, setAddress] = useState(""); // State baru untuk nama jalan
+  const [coordinates, setCoordinates] = useState({ 
+    latitude: -6.914744, // Default Itenas Bandung biar makin relevan
+    longitude: 107.635873 
+  });
 
   const handleUseMyLocation = () => {
-    if (!("geolocation" in navigator)) {
-      setGeoMessage("Browser ini tidak mendukung Geolocation API.");
-      return;
-    }
-
-    setGeoMessage(null);
-    setErrorMessage(null);
-    setIsLocating(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition((pos) => {
         setCoordinates({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
         });
-        setGeoMessage("Lokasi berhasil diambil. Geser pin bila kurang akurat.");
-        setIsLocating(false);
-      },
-      (error) => {
-        const message =
-          error.code === error.PERMISSION_DENIED
-            ? "Akses lokasi ditolak. Izinkan akses lokasi pada browser."
-            : "Gagal mengambil lokasi. Coba lagi beberapa saat.";
-
-        setGeoMessage(message);
-        setIsLocating(false);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 12000,
-        maximumAge: 0,
-      },
-    );
-  };
-
-  const handleCoordinateChange =
-    (field: keyof Coordinates) =>
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const numericValue = Number(event.target.value);
-
-      if (Number.isNaN(numericValue)) {
-        return;
-      }
-
-      setCoordinates((previous) => ({
-        ...previous,
-        [field]: numericValue,
-      }));
-    };
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (description.trim().length < MIN_DESCRIPTION_LENGTH) {
-      setErrorMessage(
-        `Deskripsi kejadian minimal ${MIN_DESCRIPTION_LENGTH} karakter agar kronologi jelas.`,
-      );
-      return;
-    }
-
-    setIsSubmitting(true);
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    let photoUrl: string | undefined;
-
-    try {
-      if (photoFile) {
-        setIsUploadingPhoto(true);
-
-        try {
-          photoUrl = await uploadFileToS3(photoFile);
-        } catch {
-          setGeoMessage(
-            "Upload S3 tidak dapat dijangkau. Laporan tetap disimpan dalam mode simulasi tanpa URL foto.",
-          );
-        } finally {
-          setIsUploadingPhoto(false);
-        }
-      }
-
-      const result = await simulateReportInsertToRds({
-        reporterName: "Pelapor Publik",
-        description: description.trim(),
-        location: `${formatCoordinate(coordinates.latitude)}, ${formatCoordinate(coordinates.longitude)}`,
-        latitude: coordinates.latitude,
-        longitude: coordinates.longitude,
-        occurredAt: new Date().toISOString(),
-        photoUrl,
       });
-
-      setSuccessMessage(
-        `Laporan ${result.reportId} berhasil disimpan (simulasi RDS) pada ${new Date(result.storedAt).toLocaleTimeString("id-ID")}.`,
-      );
-      setDescription("");
-      setPhotoFile(null);
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Terjadi masalah saat mengirim laporan.";
-      setErrorMessage(message);
-    } finally {
-      setIsSubmitting(false);
-      setIsUploadingPhoto(false);
     }
   };
 
   return (
-    <article
-      id="lapor"
-      className="reveal delay-2 rounded-[28px] border border-white/70 bg-white/90 p-5 shadow-[0_24px_60px_rgba(20,35,66,0.2)] backdrop-blur md:p-6"
-    >
-      <div className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary/80">
-            Form Publik
-          </p>
-          <h2 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">
-            Pelaporan Kecelakaan
-          </h2>
-        </div>
-        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700">
-          Tanpa Login
-        </span>
-      </div>
-
-      <form className="space-y-5" onSubmit={handleSubmit}>
+    <article className="reveal delay-2 rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-2xl backdrop-blur md:p-8">
+      <div className="space-y-6">
+        {/* Input Deskripsi */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-800" htmlFor="deskripsi">
-            Deskripsi Kejadian
-          </label>
-          <textarea
-            id="deskripsi"
+          <label className="text-sm font-bold text-slate-800">Deskripsi Kejadian</label>
+          <textarea 
             value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Contoh: tabrakan beruntun 2 mobil di jalur cepat, lalu lintas tersendat..."
-            className="min-h-28 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/15"
+            onChange={(e) => setDescription(e.target.value)}
+            className="min-h-24 w-full rounded-xl border border-slate-300 p-4 text-sm outline-none focus:ring-4 focus:ring-primary/10" 
+            placeholder="Contoh: Tabrakan dua motor, korban luka ringan..." 
           />
-          <p className="text-xs text-slate-500">
-            Minimal {MIN_DESCRIPTION_LENGTH} karakter. Jelaskan kondisi korban, jalur, dan hambatan.
-          </p>
         </div>
 
+        {/* Input Nama Jalan (Logika Baru) */}
         <div className="space-y-2">
-          <label className="text-sm font-semibold text-slate-800" htmlFor="foto-kecelakaan">
-            Upload Foto Bukti
-          </label>
-          <label
-            htmlFor="foto-kecelakaan"
-            className="flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 px-4 py-3 text-sm font-semibold text-primary transition hover:bg-primary/10"
-          >
-            <Camera className="h-4 w-4" />
-            Pilih Foto
-          </label>
-          <input
-            id="foto-kecelakaan"
-            type="file"
-            accept="image/*"
-            onChange={handlePhotoChange}
-            className="sr-only"
-          />
-
-          {photoPreviewUrl ? (
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <Image
-                src={photoPreviewUrl}
-                alt="Preview foto kecelakaan"
-                width={768}
-                height={320}
-                unoptimized
-                className="h-44 w-full object-cover"
-              />
-            </div>
-          ) : (
-            <p className="text-xs text-slate-500">Belum ada foto dipilih.</p>
-          )}
+          <label className="text-sm font-bold text-slate-800">Nama Jalan / Patokan Lokasi</label>
+          <div className="relative">
+            <Navigation className="absolute left-4 top-3.5 h-4 w-4 text-slate-400" />
+            <input 
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 py-3 pl-11 pr-4 text-sm outline-none focus:ring-4 focus:ring-primary/10"
+              placeholder="Contoh: Depan Kampus Itenas, Jl. PHH. Mustofa"
+            />
+          </div>
+          <p className="text-[10px] text-slate-500 italic px-1">Tulis nama jalan agar petugas lebih mudah menemukan lokasi.</p>
         </div>
 
-        <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-semibold text-slate-800">Lokasi Real-time</p>
-            <button
-              type="button"
+        {/* Bagian Peta Visual */}
+        <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/50 p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-sm">Verifikasi Titik Peta</h3>
+            <button 
+              type="button" 
               onClick={handleUseMyLocation}
-              disabled={isLocating}
-              className="inline-flex items-center justify-center gap-2 rounded-lg border border-secondary/25 bg-secondary/10 px-3 py-2 text-xs font-semibold text-secondary transition hover:bg-secondary/15 disabled:cursor-not-allowed disabled:opacity-70"
+              className="flex items-center gap-2 rounded-lg bg-secondary/10 px-3 py-2 text-xs font-bold text-secondary transition hover:bg-secondary/20"
             >
-              {isLocating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <LocateFixed className="h-4 w-4" />
-              )}
-              Gunakan Lokasi Saya
+              <LocateFixed className="h-4 w-4" /> Gunakan GPS
             </button>
           </div>
 
-          <div className="grid gap-2 sm:grid-cols-2">
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-              Latitude
-              <input
-                type="number"
-                step="0.000001"
-                value={coordinates.latitude}
-                onChange={handleCoordinateChange("latitude")}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              />
-            </label>
-            <label className="space-y-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-              Longitude
-              <input
-                type="number"
-                step="0.000001"
-                value={coordinates.longitude}
-                onChange={handleCoordinateChange("longitude")}
-                className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-900 outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/10"
-              />
-            </label>
-          </div>
-
-          <div className="h-56 overflow-hidden rounded-xl border border-slate-300">
-            <LocationPickerMap
-              latitude={coordinates.latitude}
-              longitude={coordinates.longitude}
+          {/* BOX PETA */}
+          <div className="relative h-[320px] w-full overflow-hidden rounded-2xl border-2 border-slate-200 shadow-inner bg-slate-200">
+            <LocationPickerMap 
+              latitude={coordinates.latitude} 
+              longitude={coordinates.longitude} 
               onLocationChange={setCoordinates}
             />
           </div>
 
-          <p className="inline-flex items-center gap-2 text-xs text-slate-600">
-            <MapPin className="h-3.5 w-3.5 text-primary" />
-            Klik peta atau geser pin untuk koreksi titik lokasi.
-          </p>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border bg-white p-2">
+              <p className="text-[9px] font-bold text-slate-400 uppercase">Latitude</p>
+              <p className="font-mono text-xs font-semibold">{coordinates.latitude.toFixed(6)}</p>
+            </div>
+            <div className="rounded-xl border bg-white p-2">
+              <p className="text-[9px] font-bold text-slate-400 uppercase">Longitude</p>
+              <p className="font-mono text-xs font-semibold">{coordinates.longitude.toFixed(6)}</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2 text-[11px] text-slate-500 italic leading-relaxed">
+            <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
+            <span>Klik peta atau geser pin merah tepat di atas posisi kejadian.</span>
+          </div>
         </div>
 
-        {geoMessage ? <p className="text-xs text-secondary">{geoMessage}</p> : null}
-        {errorMessage ? <p className="text-xs text-red-600">{errorMessage}</p> : null}
-        {successMessage ? (
-          <p className="inline-flex items-center gap-2 text-xs text-emerald-700">
-            <CheckCircle2 className="h-4 w-4" />
-            {successMessage}
-          </p>
-        ) : null}
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-primary-container px-5 text-sm font-semibold text-on-primary-container shadow-lg shadow-primary/30 transition hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-75"
-        >
-          {isSubmitting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <SendHorizontal className="h-4 w-4" />
-          )}
-          {isSubmitting
-            ? isUploadingPhoto
-              ? "Upload ke S3..."
-              : "Menyimpan ke RDS (simulasi)..."
-            : "Kirim Laporan"}
+        <button className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 text-lg font-bold text-white transition hover:bg-primary active:scale-[0.98] shadow-xl shadow-slate-900/20">
+          <SendHorizontal className="h-5 w-5" />
+          Kirim Laporan
         </button>
-      </form>
+      </div>
     </article>
   );
 }

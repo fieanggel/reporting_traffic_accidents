@@ -1,27 +1,46 @@
 "use client";
 
 import Link from "next/link";
-import { AlertTriangle, Menu, PhoneCall, ShieldCheck, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { AlertTriangle, LogIn, Menu, PhoneCall, X } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const navItems = [
   { href: "#beranda", label: "Beranda" },
-  { href: "#lapor", label: "Lapor" },
+  { href: "/lapor", label: "Lapor" },
   { href: "#layanan", label: "Layanan" },
   { href: "#peta", label: "Peta Rawan" },
   { href: "#kontak", label: "Kontak" },
 ];
 
 export default function Navbar() {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const [activeSection, setActiveSection] = useState(navItems[0].href);
+  const [activeSection, setActiveSection] = useState(
+    pathname === "/lapor" ? "/lapor" : navItems[0].href,
+  );
+
+  const resolveHref = (href: string) => {
+    if (!href.startsWith("#")) {
+      return href;
+    }
+
+    return pathname === "/" ? href : `/${href}`;
+  };
 
   useEffect(() => {
     const updateNavbarState = () => {
       setScrolled(window.scrollY > 12);
 
-      const currentSection = navItems.reduce((active, item) => {
+      if (pathname !== "/") {
+        setActiveSection(pathname === "/lapor" ? "/lapor" : navItems[0].href);
+        return;
+      }
+
+      const sectionNavItems = navItems.filter((item) => item.href.startsWith("#"));
+
+      const currentSection = sectionNavItems.reduce((active, item) => {
         const sectionId = item.href.replace("#", "");
         const section = document.getElementById(sectionId);
 
@@ -49,7 +68,7 @@ export default function Navbar() {
       window.removeEventListener("scroll", updateNavbarState);
       window.removeEventListener("resize", closeOnDesktop);
     };
-  }, []);
+  }, [pathname]);
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
@@ -74,7 +93,7 @@ export default function Navbar() {
     >
       <nav className="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-5">
         <Link
-          href="#beranda"
+          href={resolveHref("#beranda")}
           className="group flex items-center gap-3"
           onClick={() => setActiveSection("#beranda")}
         >
@@ -95,7 +114,7 @@ export default function Navbar() {
           {navItems.map((item) => (
             <li key={item.href}>
               <Link
-                href={item.href}
+                href={resolveHref(item.href)}
                 onClick={() => setActiveSection(item.href)}
                 className={`inline-flex rounded-full px-4 py-2 text-sm font-semibold transition-all duration-300 ${navItemClass(item.href)}`}
               >
@@ -107,11 +126,11 @@ export default function Navbar() {
 
         <div className="hidden items-center gap-3 md:flex">
           <Link
-            href="#kontak"
+            href="/login"
             className="inline-flex items-center gap-2 rounded-full border border-secondary/20 bg-secondary/10 px-4 py-2 text-sm font-semibold text-secondary transition hover:-translate-y-0.5 hover:bg-secondary/15"
           >
-            <ShieldCheck className="h-4 w-4" />
-            Posko Siaga
+            <LogIn className="h-4 w-4" />
+            Login Petugas
           </Link>
           <Link
             href="tel:112"
@@ -143,7 +162,7 @@ export default function Navbar() {
             {navItems.map((item) => (
               <li key={item.href}>
                 <Link
-                  href={item.href}
+                  href={resolveHref(item.href)}
                   onClick={() => {
                     setActiveSection(item.href);
                     setMobileOpen(false);
@@ -156,9 +175,17 @@ export default function Navbar() {
             ))}
           </ul>
           <Link
+            href="/login"
+            onClick={() => setMobileOpen(false)}
+            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-secondary/20 bg-secondary/10 px-4 py-3 text-sm font-semibold text-secondary transition hover:bg-secondary/15"
+          >
+            <LogIn className="h-4 w-4" />
+            Login Petugas
+          </Link>
+          <Link
             href="tel:112"
             onClick={() => setMobileOpen(false)}
-            className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-container px-4 py-3 text-sm font-semibold text-on-primary-container"
+            className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-primary-container px-4 py-3 text-sm font-semibold text-on-primary-container"
           >
             <PhoneCall className="h-4 w-4" />
             Hubungi Darurat
