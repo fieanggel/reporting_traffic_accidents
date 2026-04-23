@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useState } from "react";
-import { Loader2, LocateFixed, MapPin, SendHorizontal, Navigation } from "lucide-react";
+import { Loader2, LocateFixed, MapPin, SendHorizontal, Navigation, AlertCircle, Car } from "lucide-react";
 
 const LocationPickerMap = dynamic(
   () => import("./report/LocationPickerMap"),
@@ -19,9 +19,10 @@ const LocationPickerMap = dynamic(
 
 export default function ReportForm() {
   const [description, setDescription] = useState("");
-  const [address, setAddress] = useState(""); // State baru untuk nama jalan
+  const [address, setAddress] = useState("");
+  const [category, setCategory] = useState("Kecelakaan"); // State kategori baru
   const [coordinates, setCoordinates] = useState({ 
-    latitude: -6.914744, // Default Itenas Bandung biar makin relevan
+    latitude: -6.914744, 
     longitude: 107.635873 
   });
 
@@ -39,18 +40,48 @@ export default function ReportForm() {
   return (
     <article className="reveal delay-2 rounded-[28px] border border-white/70 bg-white/90 p-6 shadow-2xl backdrop-blur md:p-8">
       <div className="space-y-6">
-        {/* Input Deskripsi */}
+        
+        {/* PILIHAN KATEGORI (Baru) */}
+        <div className="space-y-3">
+          <label className="text-sm font-bold text-slate-800">Pilih Jenis Insiden</label>
+          <div className="grid grid-cols-2 gap-4">
+            <button
+              type="button"
+              onClick={() => setCategory("Kecelakaan")}
+              className={`flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${
+                category === "Kecelakaan" 
+                ? "border-primary bg-primary/5 text-primary shadow-lg shadow-primary/10" 
+                : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200"
+              }`}
+            >
+              <AlertCircle size={24} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Kecelakaan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCategory("Kemacetan")}
+              className={`flex flex-col items-center gap-2 py-4 rounded-2xl border-2 transition-all ${
+                category === "Kemacetan" 
+                ? "border-secondary bg-secondary/5 text-secondary shadow-lg shadow-secondary/10" 
+                : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200"
+              }`}
+            >
+              <Car size={24} />
+              <span className="text-[10px] font-black uppercase tracking-widest">Kemacetan</span>
+            </button>
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-800">Deskripsi Kejadian</label>
           <textarea 
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             className="min-h-24 w-full rounded-xl border border-slate-300 p-4 text-sm outline-none focus:ring-4 focus:ring-primary/10" 
-            placeholder="Contoh: Tabrakan dua motor, korban luka ringan..." 
+            placeholder={category === "Kecelakaan" ? "Contoh: Tabrakan dua motor..." : "Contoh: Pohon tumbang menutup jalan..."} 
           />
         </div>
 
-        {/* Input Nama Jalan (Logika Baru) */}
         <div className="space-y-2">
           <label className="text-sm font-bold text-slate-800">Nama Jalan / Patokan Lokasi</label>
           <div className="relative">
@@ -63,13 +94,12 @@ export default function ReportForm() {
               placeholder="Contoh: Depan Kampus Itenas, Jl. PHH. Mustofa"
             />
           </div>
-          <p className="text-[10px] text-slate-500 italic px-1">Tulis nama jalan agar petugas lebih mudah menemukan lokasi.</p>
         </div>
 
         {/* Bagian Peta Visual */}
         <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50/50 p-5">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-slate-900 text-sm">Verifikasi Titik Peta</h3>
+            <h3 className="font-bold text-slate-900 text-sm">Titik Koordinat</h3>
             <button 
               type="button" 
               onClick={handleUseMyLocation}
@@ -79,35 +109,23 @@ export default function ReportForm() {
             </button>
           </div>
 
-          {/* BOX PETA */}
-          <div className="relative h-[320px] w-full overflow-hidden rounded-2xl border-2 border-slate-200 shadow-inner bg-slate-200">
+          <div className="relative h-[300px] w-full overflow-hidden rounded-2xl border-2 border-slate-200 shadow-inner bg-slate-200">
             <LocationPickerMap 
               latitude={coordinates.latitude} 
               longitude={coordinates.longitude} 
               onLocationChange={setCoordinates}
             />
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl border bg-white p-2">
-              <p className="text-[9px] font-bold text-slate-400 uppercase">Latitude</p>
-              <p className="font-mono text-xs font-semibold">{coordinates.latitude.toFixed(6)}</p>
-            </div>
-            <div className="rounded-xl border bg-white p-2">
-              <p className="text-[9px] font-bold text-slate-400 uppercase">Longitude</p>
-              <p className="font-mono text-xs font-semibold">{coordinates.longitude.toFixed(6)}</p>
-            </div>
-          </div>
           
-          <div className="flex items-center gap-2 text-[11px] text-slate-500 italic leading-relaxed">
+          <div className="flex items-center gap-2 text-[11px] text-slate-500 italic">
             <MapPin className="h-3.5 w-3.5 text-primary shrink-0" />
-            <span>Klik peta atau geser pin merah tepat di atas posisi kejadian.</span>
+            <span>Pastikan pin merah tepat di atas posisi kejadian.</span>
           </div>
         </div>
 
         <button className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 text-lg font-bold text-white transition hover:bg-primary active:scale-[0.98] shadow-xl shadow-slate-900/20">
           <SendHorizontal className="h-5 w-5" />
-          Kirim Laporan
+          Kirim Laporan {category}
         </button>
       </div>
     </article>

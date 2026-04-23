@@ -21,11 +21,15 @@ export default function Navbar() {
     pathname === "/lapor" ? "/lapor" : navItems[0].href,
   );
 
+  // --- LOGIKA BARU: SEMBUNYIKAN NAVBAR DI DASHBOARD ---
+  if (pathname?.startsWith("/dashboard")) {
+    return null;
+  }
+
   const resolveHref = (href: string) => {
     if (!href.startsWith("#")) {
       return href;
     }
-
     return pathname === "/" ? href : `/${href}`;
   };
 
@@ -72,7 +76,6 @@ export default function Navbar() {
 
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? "hidden" : "";
-
     return () => {
       document.body.style.overflow = "";
     };
@@ -152,6 +155,7 @@ export default function Navbar() {
         </button>
       </nav>
 
+      {/* Mobile Menu */}
       <div
         className={`overflow-hidden transition-[max-height,opacity] duration-500 md:hidden ${
           mobileOpen ? "max-h-[420px] opacity-100" : "max-h-0 opacity-0"
