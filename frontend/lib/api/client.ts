@@ -23,7 +23,7 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { token, headers, ...requestInit } = options;
   
-  // FIX: Jika path dimulai dengan http (seperti link S3), gunakan URL tersebut secara utuh
+  // Memastikan URL S3 tidak tercampur dengan IP Backend
   const finalUrl = path.startsWith("http") 
     ? path 
     : `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -66,6 +66,15 @@ export async function apiFetch<T>(
   return parsedBody as T;
 }
 
+/**
+ * FUNGSI YANG HILANG: Digunakan oleh komponen UI untuk menampilkan pesan error
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
+}
+
 export function resolveMediaURL(url?: string | null) {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
@@ -84,7 +93,7 @@ function parseResponseBody(rawBody: string): unknown {
 
 function extractApiMessage(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
-  if ("message" in body && typeof body.message === "string") {
+  if (body && "message" in body && typeof body.message === "string") {
     return body.message;
   }
   return null;
