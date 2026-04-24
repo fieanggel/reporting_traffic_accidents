@@ -70,7 +70,7 @@ export async function uploadFileToS3(file: File): Promise<string> {
   );
 
   // 2. Upload file fisik LANGSUNG ke Amazon S3
-  // Kita gunakan window.fetch agar tidak otomatis tertambah prefix URL dari apiFetch
+  // Gunakan window.fetch agar tidak otomatis tertambah prefix URL /api
   const uploadResponse = await window.fetch(uploadUrl, {
     method: "PUT",
     headers: {
@@ -83,7 +83,6 @@ export async function uploadFileToS3(file: File): Promise<string> {
     throw new Error("Gagal mengunggah foto ke Amazon S3. Pastikan konfigurasi CORS S3 sudah benar.");
   }
 
-  // Mengembalikan URL S3 permanen untuk disimpan ke Database RDS via CreateReport
   return fileUrl;
 }
 

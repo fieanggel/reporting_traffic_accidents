@@ -46,6 +46,7 @@ func NewReportController(reportRepo repositories.ReportRepository, userRepo repo
 	}
 }
 
+// RequestUploadURL menghasilkan URL Presigned AWS S3 asli
 func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	var req presignUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -82,12 +83,11 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		return
 	}
 
-	// fileURL adalah link permanen yang akan disimpan di Database
 	fileURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, os.Getenv("AWS_REGION"), key)
 
 	c.JSON(http.StatusOK, gin.H{
-		"uploadUrl": presignedReq.URL, // Link S3 untuk browser melakukan PUT
-		"fileUrl":   fileURL,          // Link S3 untuk disimpan di DB
+		"uploadUrl": presignedReq.URL,
+		"fileUrl":   fileURL,
 	})
 }
 
@@ -112,6 +112,7 @@ func (r *ReportController) CreateReport(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Laporan berhasil dibuat", "data": report})
 }
 
+// Fungsi helper agar tidak error undefined di router/file lain
 func (r *ReportController) DirectUpload(c *gin.Context)           {}
 func (r *ReportController) GetAllReportsAdmin(c *gin.Context)    {}
 func (r *ReportController) AssignOrUpdateReport(c *gin.Context)  {}
