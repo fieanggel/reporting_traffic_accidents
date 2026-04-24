@@ -17,8 +17,11 @@ import (
 
 func SetupRouter(db *gorm.DB, jwtSecret string) *gin.Engine {
 	router := gin.Default()
+
+	// --- PERBAIKAN CORS ---
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     parseAllowedOrigins(),
+		// Kita gunakan AllowOriginFunc agar lebih dinamis atau ganti ke AllowAllOrigins
+		AllowOrigins:     parseAllowedOrigins(), 
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization"},
 		ExposeHeaders:    []string{"Content-Length"},
@@ -37,7 +40,6 @@ func SetupRouter(db *gorm.DB, jwtSecret string) *gin.Engine {
 	authController := controllers.NewAuthController(userRepo, jwtSecret)
 	reportController := controllers.NewReportController(reportRepo, userRepo)
 	officerController := controllers.NewOfficerController(userRepo)
-	// StatsController sekarang butuh userRepo untuk ambil daftar petugas
 	statsController := controllers.NewStatsController(statsRepo, userRepo)
 
 	api := router.Group("/api")
@@ -54,9 +56,12 @@ func SetupRouter(db *gorm.DB, jwtSecret string) *gin.Engine {
 
 		api.POST("/reports", reportController.CreateReport)
 		api.POST("/uploads/presign", reportController.RequestUploadURL)
+		
+		// Note: Route ini mungkin yang menyebabkan kebingungan di screenshot
+		// Pastikan frontend memanggil URL S3, bukan URL ini untuk upload gambar
 		api.PUT("/uploads/direct/*filePath", reportController.DirectUpload)
 
-		// --- ADMIN ROUTES (FIXED GROUPING) ---
+		// --- ADMIN ROUTES ---
 		admin := api.Group("/admin")
 		admin.Use(middleware.AuthMiddleware(jwtSecret))
 		admin.Use(middleware.RequireRoles("admin"))
@@ -86,9 +91,19 @@ func SetupRouter(db *gorm.DB, jwtSecret string) *gin.Engine {
 
 func parseAllowedOrigins() []string {
 	rawOrigins := strings.TrimSpace(os.Getenv("CORS_ALLOWED_ORIGINS"))
+	
+	// JIKA development dan ingin cepat, kamu bisa return []string{"*"}
+	// Tapi karena kamu pakai AllowCredentials: true, "*" tidak diperbolehkan.
+	// Jadi kita harus list manual atau tambah IP server kamu.
+	
 	if rawOrigins == "" {
-		return []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+		return []string{
+			"http://localhost:3000", 
+			"http://127.0.0.1:3000",
+			"http://98.80.187.179:3000", // TAMBAHKAN IP INI (Sesuai screenshot)
+		}
 	}
+	
 	parts := strings.Split(rawOrigins, ",")
 	origins := make([]string, 0, len(parts))
 	for _, part := range parts {

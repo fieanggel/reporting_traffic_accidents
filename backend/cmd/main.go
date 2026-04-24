@@ -25,11 +25,14 @@ func main() {
 		log.Fatal("JWT_SECRET wajib diisi")
 	}
 
+	// Setup Router
 	router := routes.SetupRouter(db, jwtSecret)
 
 	port := getEnv("PORT", "8080")
-	log.Printf("ResponCepat backend berjalan di http://localhost:%s", port)
-	if err := router.Run(":" + port); err != nil {
+	log.Printf("ResponCepat backend berjalan di port :%s", port)
+    
+	// Gunakan 0.0.0.0 agar bisa diakses dari network luar (IP 98.80.x.x kamu)
+	if err := router.Run("0.0.0.0:" + port); err != nil {
 		log.Fatalf("gagal menjalankan server: %v", err)
 	}
 }
@@ -39,6 +42,5 @@ func getEnv(key string, fallback string) string {
 	if value == "" {
 		return fallback
 	}
-
 	return value
 }
