@@ -65,14 +65,12 @@ export async function apiFetch<T>(
 }
 
 export function resolveMediaURL(url?: string | null) {
-  if (!url) {
-    return "";
-  }
+  if (!url) return "";
+  
+  // Jika URL sudah lengkap
+  if (/^https?:\/\//i.test(url)) return url;
 
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-
+  // Jika URL dari backend (/uploads/...) kita sambungkan ke ORIGIN kita (Port 3000)
   if (url.startsWith("/")) {
     return `${API_ORIGIN}${url}`;
   }
@@ -81,21 +79,13 @@ export function resolveMediaURL(url?: string | null) {
 }
 
 export function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) {
-    return error.message;
-  }
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
+  if (error instanceof ApiError) return error.message;
+  if (error instanceof Error && error.message) return error.message;
   return fallback;
 }
 
 function parseResponseBody(rawBody: string): unknown {
-  if (!rawBody) {
-    return null;
-  }
-
+  if (!rawBody) return null;
   try {
     return JSON.parse(rawBody);
   } catch {
@@ -104,13 +94,9 @@ function parseResponseBody(rawBody: string): unknown {
 }
 
 function extractApiMessage(body: unknown): string | null {
-  if (!body || typeof body !== "object") {
-    return null;
-  }
-
+  if (!body || typeof body !== "object") return null;
   if ("message" in body && typeof body.message === "string") {
     return body.message;
   }
-
   return null;
 }
