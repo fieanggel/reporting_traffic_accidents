@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path"
@@ -53,8 +54,12 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		return
 	}
 
+	bucket := os.Getenv("AWS_S3_BUCKET_NAME")
+	region := os.Getenv("AWS_REGION")
+
+	// 1. Load AWS Config
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(os.Getenv("AWS_REGION")),
+		config.WithRegion(region),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			os.Getenv("AWS_ACCESS_KEY_ID"),
 			os.Getenv("AWS_SECRET_ACCESS_KEY"),
@@ -62,15 +67,16 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		)),
 	)
 	if err != nil {
+		log.Printf("[ERROR] AWS Config Gagal: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal konfigurasi AWS"})
 		return
 	}
 
 	s3Client := s3.NewFromConfig(cfg)
 	presignClient := s3.NewPresignClient(s3Client)
-	bucket := os.Getenv("AWS_S3_BUCKET_NAME")
 	key := "reports/" + req.FileName
 
+	// 2. Generate Presigned URL asli dari S3
 	presignedReq, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
@@ -78,14 +84,16 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	}, s3.WithPresignExpires(time.Minute*15))
 
 	if err != nil {
+		log.Printf("[ERROR] Gagal generate link S3: %v. Pastikan EC2 BE punya akses internet/VPC Endpoint!", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal generate link S3"})
 		return
 	}
 
-	fileURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, os.Getenv("AWS_REGION"), key)
+	// URL Publik untuk disimpan di Database
+	fileURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, region, key)
 
 	c.JSON(http.StatusOK, gin.H{
-		"uploadUrl": presignedReq.URL,
+		"uploadUrl": presignedReq.URL, // Ini WAJIB URL S3 asli (https://...)
 		"fileUrl":   fileURL,
 	})
 }
