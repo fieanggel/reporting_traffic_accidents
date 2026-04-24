@@ -1,5 +1,6 @@
-export const API_BASE_URL = "http://98.80.187.179:4000/api";
-export const API_ORIGIN = "http://98.80.187.179:4000";
+// IP Publik EC2 Frontend port 3000 sebagai pintu gerbang (Reverse Proxy)
+export const API_BASE_URL = "http://98.80.187.179:3000/api";
+export const API_ORIGIN = "http://98.80.187.179:3000";
 
 export class ApiError extends Error {
   status: number;
@@ -23,7 +24,8 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { token, headers, ...requestInit } = options;
   
-  // Memastikan URL S3 tidak tercampur dengan IP Backend
+  // FIX: Jika path sudah berisi URL lengkap (seperti link S3), gunakan langsung.
+  // Jika hanya path API (seperti /auth/login), tambahkan API_BASE_URL.
   const finalUrl = path.startsWith("http") 
     ? path 
     : `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
@@ -67,7 +69,7 @@ export async function apiFetch<T>(
 }
 
 /**
- * FUNGSI YANG HILANG: Digunakan oleh komponen UI untuk menampilkan pesan error
+ * Mengubah objek error menjadi string yang bisa dibaca user
  */
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof ApiError) return error.message;
@@ -75,11 +77,14 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+/**
+ * Mengubah path gambar menjadi URL yang bisa ditampilkan di <img> tag
+ */
 export function resolveMediaURL(url?: string | null) {
   if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url;
+  if (/^https?:\/\//i.test(url)) return url; // Jika sudah URL S3, biarkan
   const cleanUrl = url.startsWith("/") ? url : `/${url}`;
-  return `${API_ORIGIN}${cleanUrl}`;
+  return `${API_ORIGIN}${cleanUrl}`; // Jika path lokal, gunakan IP Frontend sebagai origin
 }
 
 function parseResponseBody(rawBody: string): unknown {
@@ -94,7 +99,7 @@ function parseResponseBody(rawBody: string): unknown {
 function extractApiMessage(body: unknown): string | null {
   if (!body || typeof body !== "object") return null;
   if (body && "message" in body && typeof body.message === "string") {
-    return body.message;
+    return (body as { message: string }).message;
   }
   return null;
 }
