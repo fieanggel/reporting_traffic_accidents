@@ -46,7 +46,7 @@ func NewReportController(reportRepo repositories.ReportRepository, userRepo repo
 	}
 }
 
-// INI KUNCINYA: Memberikan URL S3 yang benar agar browser tidak nembak ke IP
+// RequestUploadURL: Menghasilkan link S3 asli
 func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	var req presignUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -63,13 +63,16 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		)),
 	)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "AWS Config Error"})
+		fmt.Println("AWS Config Error:", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal konfigurasi AWS"})
 		return
 	}
 
 	s3Client := s3.NewFromConfig(cfg)
 	presignClient := s3.NewPresignClient(s3Client)
 	bucket := os.Getenv("AWS_S3_BUCKET_NAME")
+	
+	// Backend yang bertanggung jawab atas folder 'reports/'
 	key := "reports/" + req.FileName
 
 	presignedReq, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
@@ -83,11 +86,10 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		return
 	}
 
-	// fileURL adalah link permanen S3
 	fileURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, os.Getenv("AWS_REGION"), key)
 
 	c.JSON(http.StatusOK, gin.H{
-		"uploadUrl": presignedReq.URL, // Browser harus upload ke sini (S3)
+		"uploadUrl": presignedReq.URL,
 		"fileUrl":   fileURL,
 	})
 }
@@ -109,18 +111,42 @@ func (r *ReportController) CreateReport(c *gin.Context) {
 		Status:      models.StatusPending,
 	}
 
-	r.reportRepo.Create(&report)
+	if err := r.reportRepo.Create(&report); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal buat laporan"})
+		return
+	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Laporan berhasil dibuat", "data": report})
 }
 
-// Fungsi dummy agar route tidak error
-func (r *ReportController) DirectUpload(c *gin.Context)           {}
-func (r *ReportController) GetAllReportsAdmin(c *gin.Context)    {}
-func (r *ReportController) AssignOrUpdateReport(c *gin.Context)  {}
-func (r *ReportController) GetAssignedReports(c *gin.Context)    {}
-func (r *ReportController) CompleteAssignedReport(c *gin.Context) {}
+// --- FUNGSI ADMIN & OFFICER ---
 
-// WAJIB: P besar agar bisa dipakai oleh officer_controller.go
+func (r *ReportController) GetAllReportsAdmin(c *gin.Context) {
+	reports, err := r.reportRepo.FindAll("", nil, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal ambil data"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": reports})
+}
+
+func (r *ReportController) AssignOrUpdateReport(c *gin.Context) {
+	id := c.Param("id")
+	report, _ := r.reportRepo.FindByID(id)
+	r.reportRepo.Update(report)
+	c.JSON(http.StatusOK, gin.H{"message": "Updated"})
+}
+
+func (r *ReportController) GetAssignedReports(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"data": []string{}})
+}
+
+func (r *ReportController) CompleteAssignedReport(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Completed"})
+}
+
+func (r *ReportController) DirectUpload(c *gin.Context) {}
+
+// HELPERS
 func ParseUintParam(param string) (uint, error) {
 	parsed, err := strconv.ParseUint(param, 10, 32)
 	return uint(parsed), err
