@@ -1,33 +1,4 @@
-name: CI/CD Deployment
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  build-and-push:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build & Push Backend
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest ./backend
-          docker push ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
-
-      - name: Build & Push Frontend
-        run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest ./frontend
-          docker push ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
-
-  deploy:
+deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
@@ -45,7 +16,7 @@ jobs:
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
             # --- PROSES BACKEND (JALUR KURIR) ---
-            # Kita tarik image BE ke FE dulu karena FE punya internet
+            # Tarik image BE ke FE karena FE punya internet
             docker pull ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
             
             # Simpan image jadi file tar
@@ -54,24 +25,32 @@ jobs:
             # Kirim file tar dari FE ke BE lewat jaringan internal
             scp -o StrictHostKeyChecking=no -i keydifie.pem backend_image.tar ubuntu@10.20.2.77:~/
             
-            # Perintahkan BE untuk load image dari file (tanpa internet)
+            # Perintahkan BE untuk load image dan jalankan aplikasi
             ssh -o StrictHostKeyChecking=no -i keydifie.pem ubuntu@10.20.2.77 << 'EOF'
               docker load < ~/backend_image.tar
               docker stop be-server || true && docker rm be-server || true
-              docker run -d --name be-server -p 4000:4000 \
+              
+              # Jalankan dengan --network host untuk bypass masalah DNS
+              # Pastikan DB_HOST menggunakan endpoint RDS yang benar
+              docker run -d --name be-server \
+                --network host \
                 -e DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com \
+                -e DB_PORT=3306 \
+                -e DB_USER=admin \
                 -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
                 -e DB_NAME=reportkecelakaan \
-                -e DB_USER=admin \
+                -e PORT=4000 \
+                -e JWT_SECRET=${{ secrets.JWT_SECRET }} \
+                -e CORS_ALLOWED_ORIGINS=http://98.80.187.179:3000 \
                 --restart always ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
+              
               rm ~/backend_image.tar
             EOF
             
-            # Hapus file tar di FE biar nggak menuhin disk
+            # Hapus sisa file di FE
             rm backend_image.tar
 
             # --- PROSES FRONTEND ---
-            # Update Frontend di FE (seperti biasa)
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
             docker stop fe-server || true && docker rm fe-server || true
             docker run -d --name fe-server -p 3000:3000 --restart always ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
