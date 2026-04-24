@@ -41,7 +41,6 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_PEM_KEY }}
           script: |
-            # 1. Login Docker di Frontend
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
             # --- PROSES BACKEND (JALUR KURIR) ---
@@ -49,8 +48,6 @@ jobs:
             docker save ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest > backend_image.tar
             scp -o StrictHostKeyChecking=no -i keydifie.pem backend_image.tar ubuntu@10.20.2.77:~/
             
-            # Perintah di bawah ini menggunakan tanda petik ganda agar GitHub Actions
-            # langsung mengisi nilai rahasianya sebelum SSH dijalankan.
             ssh -o StrictHostKeyChecking=no -i keydifie.pem ubuntu@10.20.2.77 "
               docker load < ~/backend_image.tar
               docker stop be-server || true && docker rm be-server || true
@@ -66,11 +63,14 @@ jobs:
                 -e PORT=4000 \
                 -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
                 -e CORS_ALLOWED_ORIGINS=http://98.80.187.179:3000 \
+                -e AWS_REGION='us-east-1' \
+                -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
+                -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
+                -e AWS_S3_BUCKET_NAME='${{ secrets.AWS_S3_BUCKET_NAME }}' \
                 --restart always ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
               
               rm ~/backend_image.tar
             "
-            
             rm backend_image.tar
 
             # --- PROSES FRONTEND ---
