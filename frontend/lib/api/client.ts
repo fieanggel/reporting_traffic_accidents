@@ -22,7 +22,6 @@ export async function apiFetch<T>(
   options: ApiFetchOptions = {},
 ): Promise<T> {
   const { token, headers, ...requestInit } = options;
-
   const resolvedPath = path.startsWith("/") ? path : `/${path}`;
   const finalUrl = `${API_BASE_URL}${resolvedPath}`;
 
@@ -67,15 +66,12 @@ export async function apiFetch<T>(
 export function resolveMediaURL(url?: string | null) {
   if (!url) return "";
   
-  // Jika URL sudah lengkap
+  // Jika URL sudah dari S3 (https://...) langsung tampilkan
   if (/^https?:\/\//i.test(url)) return url;
 
-  // Jika URL dari backend (/uploads/...) kita sambungkan ke ORIGIN kita (Port 3000)
-  if (url.startsWith("/")) {
-    return `${API_ORIGIN}${url}`;
-  }
-
-  return `${API_ORIGIN}/${url}`;
+  // Jika URL berupa path lokal (jarang terjadi kalau sudah pakai S3)
+  const cleanUrl = url.startsWith("/") ? url : `/${url}`;
+  return `${API_ORIGIN}${cleanUrl}`;
 }
 
 export function getErrorMessage(error: unknown, fallback: string) {

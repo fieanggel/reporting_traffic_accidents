@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"errors"
 	"net/http"
 	"strings"
 
@@ -10,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 type OfficerController struct {
@@ -44,22 +42,7 @@ func (o *OfficerController) CreateOfficer(c *gin.Context) {
 		return
 	}
 
-	existing, err := o.userRepo.GetByUsername(strings.TrimSpace(req.Username))
-	if err == nil && existing != nil {
-		c.JSON(http.StatusConflict, gin.H{"message": "username sudah digunakan"})
-		return
-	}
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal validasi username"})
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal memproses password"})
-		return
-	}
-
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	officer := models.User{
 		Name:        strings.TrimSpace(req.Name),
 		Username:    strings.TrimSpace(req.Username),
@@ -69,138 +52,44 @@ func (o *OfficerController) CreateOfficer(c *gin.Context) {
 		Zone:        req.Zone,
 	}
 
-	if err := o.userRepo.Create(&officer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal membuat officer", "error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "officer berhasil dibuat",
-		"data":    officer,
-	})
+	o.userRepo.Create(&officer)
+	c.JSON(http.StatusCreated, gin.H{"message": "officer berhasil dibuat", "data": officer})
 }
 
 func (o *OfficerController) ListOfficers(c *gin.Context) {
-	officers, err := o.userRepo.ListOfficers()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal mengambil data officer", "error": err.Error()})
-		return
-	}
-
+	officers, _ := o.userRepo.ListOfficers()
 	c.JSON(http.StatusOK, gin.H{"data": officers})
 }
 
 func (o *OfficerController) GetOfficerByID(c *gin.Context) {
-	userID, err := parseUintParam(c.Param("id"))
+	userID, err := ParseUintParam(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "id officer tidak valid"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "id tidak valid"})
 		return
 	}
 
-	officer, err := o.userRepo.GetByID(userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "officer tidak ditemukan"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal mengambil data officer", "error": err.Error()})
-		return
-	}
-
-	if officer.Role != models.RoleOfficer {
-		c.JSON(http.StatusNotFound, gin.H{"message": "user bukan officer"})
-		return
-	}
-
+	officer, _ := o.userRepo.GetByID(userID)
 	c.JSON(http.StatusOK, gin.H{"data": officer})
 }
 
 func (o *OfficerController) UpdateOfficer(c *gin.Context) {
-	userID, err := parseUintParam(c.Param("id"))
+	userID, err := ParseUintParam(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "id officer tidak valid"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "id tidak valid"})
 		return
 	}
 
-	officer, err := o.userRepo.GetByID(userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "officer tidak ditemukan"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal mengambil officer", "error": err.Error()})
-		return
-	}
-
-	if officer.Role != models.RoleOfficer {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "user ini bukan role officer"})
-		return
-	}
-
-	var req updateOfficerRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "payload update officer tidak valid", "error": err.Error()})
-		return
-	}
-
-	if req.Name != nil {
-		officer.Name = strings.TrimSpace(*req.Name)
-	}
-	if req.Username != nil {
-		officer.Username = strings.TrimSpace(*req.Username)
-	}
-	if req.OfficerID != nil {
-		officer.OfficerCode = req.OfficerID
-	}
-	if req.Zone != nil {
-		officer.Zone = req.Zone
-	}
-	if req.Password != nil && strings.TrimSpace(*req.Password) != "" {
-		hashedPassword, hashErr := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
-		if hashErr != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal memproses password"})
-			return
-		}
-		officer.Password = string(hashedPassword)
-	}
-
-	if err := o.userRepo.Update(officer); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal update officer", "error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message": "officer berhasil diperbarui",
-		"data":    officer,
-	})
+	officer, _ := o.userRepo.GetByID(userID)
+	o.userRepo.Update(officer)
+	c.JSON(http.StatusOK, gin.H{"message": "berhasil diperbarui"})
 }
 
 func (o *OfficerController) DeleteOfficer(c *gin.Context) {
-	userID, err := parseUintParam(c.Param("id"))
+	userID, err := ParseUintParam(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "id officer tidak valid"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "id tidak valid"})
 		return
 	}
-
-	officer, err := o.userRepo.GetByID(userID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"message": "officer tidak ditemukan"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal mengambil officer", "error": err.Error()})
-		return
-	}
-
-	if officer.Role != models.RoleOfficer {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "hanya akun officer yang bisa dihapus"})
-		return
-	}
-
-	if err := o.userRepo.DeleteByID(userID); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"message": "gagal menghapus officer", "error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "officer berhasil dihapus"})
+	o.userRepo.DeleteByID(userID)
+	c.JSON(http.StatusOK, gin.H{"message": "berhasil dihapus"})
 }

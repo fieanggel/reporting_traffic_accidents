@@ -10,31 +10,23 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Build & Push Backend
+      - name: Build & Push
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest ./backend
-          docker push ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
-
-      - name: Build & Push Frontend
-        run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
           docker push ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
 
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Deploy via Frontend Proxy
+      - name: Deploy to EC2
         uses: appleboy/ssh-action@master
         with:
           host: 98.80.187.179
@@ -43,37 +35,25 @@ jobs:
           script: |
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
-            # --- PROSES BACKEND (JALUR KURIR) ---
+            # --- BACKEND ---
             docker pull ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
-            docker save ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest > backend_image.tar
-            scp -o StrictHostKeyChecking=no -i keydifie.pem backend_image.tar ubuntu@10.20.2.77:~/
-            
-            ssh -o StrictHostKeyChecking=no -i keydifie.pem ubuntu@10.20.2.77 "
-              docker load < ~/backend_image.tar
-              docker stop be-server || true && docker rm be-server || true
-              
-              docker run -d --name be-server \
-                --network host \
-                -e DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com \
-                -e DB_PORT=3306 \
-                -e DB_USER=admin \
-                -e DB_PASS='${{ secrets.DB_PASSWORD }}' \
-                -e DB_PASSWORD='${{ secrets.DB_PASSWORD }}' \
-                -e DB_NAME=reportkecelakaan \
-                -e PORT=4000 \
-                -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
-                -e CORS_ALLOWED_ORIGINS=http://98.80.187.179:3000 \
-                -e AWS_REGION='us-east-1' \
-                -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
-                -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
-                -e AWS_S3_BUCKET_NAME='${{ secrets.AWS_S3_BUCKET_NAME }}' \
-                --restart always ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
-              
-              rm ~/backend_image.tar
-            "
-            rm backend_image.tar
+            docker stop be-server || true && docker rm be-server || true
+            docker run -d --name be-server \
+              --network host \
+              -e DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com \
+              -e DB_PORT=3306 \
+              -e DB_USER=admin \
+              -e DB_PASS='${{ secrets.DB_PASSWORD }}' \
+              -e DB_NAME=reportkecelakaan \
+              -e JWT_SECRET='${{ secrets.JWT_SECRET }}' \
+              -e AWS_REGION='us-east-1' \
+              -e AWS_ACCESS_KEY_ID='${{ secrets.AWS_ACCESS_KEY_ID }}' \
+              -e AWS_SECRET_ACCESS_KEY='${{ secrets.AWS_SECRET_ACCESS_KEY }}' \
+              -e AWS_S3_BUCKET_NAME='${{ secrets.AWS_S3_BUCKET_NAME }}' \
+              -e CORS_ALLOWED_ORIGINS=http://98.80.187.179:3000 \
+              --restart always ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
 
-            # --- PROSES FRONTEND ---
+            # --- FRONTEND ---
             docker pull ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
             docker stop fe-server || true && docker rm fe-server || true
             docker run -d --name fe-server -p 3000:3000 --restart always ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
