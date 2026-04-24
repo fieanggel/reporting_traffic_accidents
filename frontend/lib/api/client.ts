@@ -1,6 +1,4 @@
 export const API_BASE_URL = "http://98.80.187.179:3000/api";
-
-// Digunakan untuk resolveMediaURL (foto laporan)
 export const API_ORIGIN = "http://98.80.187.179:3000";
 
 export class ApiError extends Error {
