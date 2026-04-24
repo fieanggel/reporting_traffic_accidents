@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  backend:
+    image: raelqiansyah/backenddifie:latest
+    container_name: be-server
+    ports:
+      - "4000:4000"
+    environment:
+      - DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com
+      - DB_NAME=reportkecelakaan
+      - DB_USER=admin
+      - DB_PASSWORD=${DB_PASSWORD} # Akan diambil dari shell env
+    restart: always
+
+  frontend:
+    image: raelqiansyah/frontenddifie:latest
+    container_name: fe-server
+    ports:
+      - "3000:3000"
+    restart: always 

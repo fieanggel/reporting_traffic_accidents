@@ -1,0 +1,73 @@
+name: CI/CD Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & Push Backend
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest ./backend
+          docker push ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
+
+      - name: Build & Push Frontend
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # STEP BARU: Kirim file docker-compose.yml ke EC2 FE
+      - name: Copy docker-compose to FE
+        uses: appleboy/scp-action@master
+        with:
+          host: 98.80.187.179
+          username: ubuntu
+          key: ${{ secrets.EC2_PEM_KEY }}
+          source: "docker-compose.yml"
+          target: "~/"
+
+      - name: Deploy to EC2 via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: 98.80.187.179
+          username: ubuntu
+          key: ${{ secrets.EC2_PEM_KEY }}
+          script: |
+            echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+            
+            # 1. Update Frontend & Backend di FE menggunakan Docker Compose
+            # Kita export DB_PASSWORD biar dibaca oleh docker-compose.yml
+            export DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            docker compose pull
+            docker compose up -d --remove-orphans
+
+            # 2. Update Backend di Server BE (Tetap pakai run manual karena BE tidak punya file compose)
+            ssh -o StrictHostKeyChecking=no -i keydifie.pem ubuntu@10.20.2.77 << 'EOF'
+              docker login -u "${{ secrets.DOCKER_USERNAME }}" -p "${{ secrets.DOCKER_PASSWORD }}"
+              docker stop be-server || true && docker rm be-server || true
+              docker pull ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
+              docker run -d --name be-server -p 4000:4000 \
+              -e DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com \
+              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+              -e DB_NAME=reportkecelakaan \
+              -e DB_USER=admin \
+              --restart always ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
+            EOF
