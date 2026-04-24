@@ -40,9 +40,8 @@ jobs:
           host: 98.80.187.179
           username: ubuntu
           key: ${{ secrets.EC2_PEM_KEY }}
-          # Kita definisikan env di sini agar bisa dipakai di dalam script
+          # PENTING: Semua parameter dimasukkan ke dalam SATU blok 'with'
           envs: DB_PASSWORD,JWT_SECRET,DOCKER_USERNAME
-        with:
           script: |
             # 1. Login Docker di Frontend
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
@@ -52,7 +51,7 @@ jobs:
             docker save ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest > backend_image.tar
             scp -o StrictHostKeyChecking=no -i keydifie.pem backend_image.tar ubuntu@10.20.2.77:~/
             
-            # Eksekusi di BE (Private) dengan melemparkan variabel password
+            # Eksekusi di BE (Private) dengan meneruskan variabel environment
             ssh -o StrictHostKeyChecking=no -i keydifie.pem ubuntu@10.20.2.77 \
               "DB_PASS='${{ secrets.DB_PASSWORD }}' \
                JWT_SEC='${{ secrets.JWT_SECRET }}' \
@@ -61,7 +60,7 @@ jobs:
               docker load < ~/backend_image.tar
               docker stop be-server || true && docker rm be-server || true
               
-              # Jalankan container dengan menyuntikkan password secara eksplisit
+              # Jalankan container dengan network host dan suntikan password
               docker run -d --name be-server \
                 --network host \
                 -e DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com \
