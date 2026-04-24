@@ -1,4 +1,33 @@
-deploy:
+name: CI/CD Deployment
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build & Push Backend
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest ./backend
+          docker push ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
+
+      - name: Build & Push Frontend
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest ./frontend
+          docker push ${{ secrets.DOCKER_USERNAME }}/frontenddifie:latest
+
+  deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
@@ -16,22 +45,21 @@ deploy:
             echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
             
             # --- PROSES BACKEND (JALUR KURIR) ---
-            # Tarik image BE ke FE karena FE punya internet
+            # FE narik image BE
             docker pull ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest
             
-            # Simpan image jadi file tar
+            # Simpan jadi file tar
             docker save ${{ secrets.DOCKER_USERNAME }}/backenddifie:latest > backend_image.tar
             
-            # Kirim file tar dari FE ke BE lewat jaringan internal
+            # Kirim ke BE lewat jalur internal
             scp -o StrictHostKeyChecking=no -i keydifie.pem backend_image.tar ubuntu@10.20.2.77:~/
             
-            # Perintahkan BE untuk load image dan jalankan aplikasi
+            # Eksekusi di BE (Private)
             ssh -o StrictHostKeyChecking=no -i keydifie.pem ubuntu@10.20.2.77 << 'EOF'
               docker load < ~/backend_image.tar
               docker stop be-server || true && docker rm be-server || true
               
-              # Jalankan dengan --network host untuk bypass masalah DNS
-              # Pastikan DB_HOST menggunakan endpoint RDS yang benar
+              # Gunakan --network host untuk mengatasi masalah DNS/Network unreachable
               docker run -d --name be-server \
                 --network host \
                 -e DB_HOST=dbdifie.cgxgc8wsgidd.us-east-1.rds.amazonaws.com \
@@ -47,7 +75,7 @@ deploy:
               rm ~/backend_image.tar
             EOF
             
-            # Hapus sisa file di FE
+            # Hapus file tar di FE
             rm backend_image.tar
 
             # --- PROSES FRONTEND ---
