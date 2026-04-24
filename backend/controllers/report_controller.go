@@ -82,8 +82,13 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		return
 	}
 
+	// fileURL adalah link permanen yang akan disimpan di Database
 	fileURL := fmt.Sprintf("https://%s.s3.%s.amazonaws.com/%s", bucket, os.Getenv("AWS_REGION"), key)
-	c.JSON(http.StatusOK, gin.H{"uploadUrl": presignedReq.URL, "fileUrl": fileURL})
+
+	c.JSON(http.StatusOK, gin.H{
+		"uploadUrl": presignedReq.URL, // Link S3 untuk browser melakukan PUT
+		"fileUrl":   fileURL,          // Link S3 untuk disimpan di DB
+	})
 }
 
 func (r *ReportController) CreateReport(c *gin.Context) {
@@ -104,10 +109,9 @@ func (r *ReportController) CreateReport(c *gin.Context) {
 	}
 
 	r.reportRepo.Create(&report)
-	c.JSON(http.StatusCreated, gin.H{"message": "Laporan berhasil", "data": report})
+	c.JSON(http.StatusCreated, gin.H{"message": "Laporan berhasil dibuat", "data": report})
 }
 
-// Fungsi dummy agar route tidak error
 func (r *ReportController) DirectUpload(c *gin.Context)           {}
 func (r *ReportController) GetAllReportsAdmin(c *gin.Context)    {}
 func (r *ReportController) AssignOrUpdateReport(c *gin.Context)  {}

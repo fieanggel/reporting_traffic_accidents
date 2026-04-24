@@ -1,6 +1,8 @@
 import { apiFetch } from "@/lib/api/client";
 import type { AuthUser } from "@/lib/auth/session";
 
+// --- TYPES ---
+
 export type ReportCategory = "Kecelakaan" | "Kemacetan";
 export type ReportStatus = "Pending" | "Proses" | "Selesai";
 
@@ -48,6 +50,46 @@ type ReportWriteResponse = {
   data: ReportRecord;
 };
 
+// --- FUNCTIONS ---
+
+/**
+ * Fungsi krusial untuk mengupload file langsung ke Amazon S3
+ * menggunakan Presigned URL dari Backend.
+ */
+export async function uploadFileToS3(file: File): Promise<string> {
+  // 1. Minta Presigned URL dan link file permanen ke Backend
+  const { uploadUrl, fileUrl } = await apiFetch<{ uploadUrl: string; fileUrl: string }>(
+    "/uploads/presign",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        fileName: `${Date.now()}-${file.name.replace(/\s+/g, "-")}`,
+        contentType: file.type,
+      }),
+    }
+  );
+
+  // 2. Upload file fisik LANGSUNG ke Amazon S3
+  // Kita gunakan window.fetch agar tidak otomatis tertambah prefix URL dari apiFetch
+  const uploadResponse = await window.fetch(uploadUrl, {
+    method: "PUT",
+    headers: {
+      "Content-Type": file.type,
+    },
+    body: file,
+  });
+
+  if (!uploadResponse.ok) {
+    throw new Error("Gagal mengunggah foto ke Amazon S3. Pastikan konfigurasi CORS S3 sudah benar.");
+  }
+
+  // Mengembalikan URL S3 permanen untuk disimpan ke Database RDS via CreateReport
+  return fileUrl;
+}
+
+/**
+ * Membuat laporan baru (Public)
+ */
 export async function createPublicReport(
   payload: CreateReportPayload,
 ): Promise<ReportRecord> {
@@ -59,6 +101,9 @@ export async function createPublicReport(
   return response.data;
 }
 
+/**
+ * Mengambil semua laporan untuk Admin
+ */
 export async function getAdminReports(
   token: string,
   filters: AdminReportFilters = {},
@@ -84,6 +129,9 @@ export async function getAdminReports(
   return response.data;
 }
 
+/**
+ * Admin mengupdate status atau menugaskan petugas
+ */
 export async function updateAdminReport(
   token: string,
   reportID: string,
@@ -98,6 +146,9 @@ export async function updateAdminReport(
   return response.data;
 }
 
+/**
+ * Petugas (Officer) melihat daftar laporan yang ditugaskan kepadanya
+ */
 export async function getOfficerReports(
   token: string,
   status?: ReportStatus,
@@ -114,6 +165,9 @@ export async function getOfficerReports(
   return response.data;
 }
 
+/**
+ * Petugas menandai laporan sebagai selesai
+ */
 export async function completeOfficerReport(
   token: string,
   reportID: string,

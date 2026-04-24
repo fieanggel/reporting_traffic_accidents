@@ -69,7 +69,7 @@ export function resolveMediaURL(url?: string | null) {
   // Jika URL sudah dari S3 (https://...) langsung tampilkan
   if (/^https?:\/\//i.test(url)) return url;
 
-  // Jika URL berupa path lokal (jarang terjadi kalau sudah pakai S3)
+  // Jika URL berupa path lokal (fall-back)
   const cleanUrl = url.startsWith("/") ? url : `/${url}`;
   return `${API_ORIGIN}${cleanUrl}`;
 }
