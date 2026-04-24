@@ -46,7 +46,7 @@ func NewReportController(reportRepo repositories.ReportRepository, userRepo repo
 	}
 }
 
-// RequestUploadURL menghasilkan URL Presigned AWS S3 asli
+// RequestUploadURL: Menghasilkan link upload Amazon S3 yang asli
 func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	var req presignUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -112,12 +112,34 @@ func (r *ReportController) CreateReport(c *gin.Context) {
 	c.JSON(http.StatusCreated, gin.H{"message": "Laporan berhasil dibuat", "data": report})
 }
 
-// Fungsi helper agar tidak error undefined di router/file lain
-func (r *ReportController) DirectUpload(c *gin.Context)           {}
-func (r *ReportController) GetAllReportsAdmin(c *gin.Context)    {}
-func (r *ReportController) AssignOrUpdateReport(c *gin.Context)  {}
-func (r *ReportController) GetAssignedReports(c *gin.Context)    {}
-func (r *ReportController) CompleteAssignedReport(c *gin.Context) {}
+// --- FUNGSI ADMIN & OFFICER (DIBUTUHKAN OLEH ROUTER) ---
+
+func (r *ReportController) GetAllReportsAdmin(c *gin.Context) {
+	reports, err := r.reportRepo.FindAll("", nil, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal ambil data"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": reports})
+}
+
+func (r *ReportController) AssignOrUpdateReport(c *gin.Context) {
+	// Implementasi update admin di sini
+}
+
+func (r *ReportController) GetAssignedReports(c *gin.Context) {
+	// Implementasi ambil laporan untuk petugas di sini
+}
+
+func (r *ReportController) CompleteAssignedReport(c *gin.Context) {
+	// Implementasi petugas menyelesaikan laporan di sini
+}
+
+func (r *ReportController) DirectUpload(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"message": "Gunakan S3 Presign"})
+}
+
+// --- FUNGSI HELPER (DIBUTUHKAN OLEH CONTROLLER LAIN) ---
 
 func ParseUintParam(param string) (uint, error) {
 	parsed, err := strconv.ParseUint(param, 10, 32)

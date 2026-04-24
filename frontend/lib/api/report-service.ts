@@ -53,11 +53,9 @@ type ReportWriteResponse = {
 // --- FUNCTIONS ---
 
 /**
- * Fungsi krusial untuk mengupload file langsung ke Amazon S3
- * menggunakan Presigned URL dari Backend.
+ * Mengupload file langsung ke Amazon S3 menggunakan link tiket dari Backend.
  */
 export async function uploadFileToS3(file: File): Promise<string> {
-  // 1. Minta Presigned URL dan link file permanen ke Backend
   const { uploadUrl, fileUrl } = await apiFetch<{ uploadUrl: string; fileUrl: string }>(
     "/uploads/presign",
     {
@@ -69,26 +67,20 @@ export async function uploadFileToS3(file: File): Promise<string> {
     }
   );
 
-  // 2. Upload file fisik LANGSUNG ke Amazon S3
-  // Gunakan window.fetch agar tidak otomatis tertambah prefix URL /api
+  // KRUSIAL: Gunakan window.fetch untuk nembak langsung ke link S3
   const uploadResponse = await window.fetch(uploadUrl, {
     method: "PUT",
-    headers: {
-      "Content-Type": file.type,
-    },
+    headers: { "Content-Type": file.type },
     body: file,
   });
 
   if (!uploadResponse.ok) {
-    throw new Error("Gagal mengunggah foto ke Amazon S3. Pastikan konfigurasi CORS S3 sudah benar.");
+    throw new Error("Gagal mengunggah foto ke S3. Periksa CORS di Bucket AWS.");
   }
 
   return fileUrl;
 }
 
-/**
- * Membuat laporan baru (Public)
- */
 export async function createPublicReport(
   payload: CreateReportPayload,
 ): Promise<ReportRecord> {
@@ -100,26 +92,16 @@ export async function createPublicReport(
   return response.data;
 }
 
-/**
- * Mengambil semua laporan untuk Admin
- */
 export async function getAdminReports(
   token: string,
   filters: AdminReportFilters = {},
 ): Promise<ReportRecord[]> {
   const params = new URLSearchParams();
-  if (filters.status) {
-    params.set("status", filters.status);
-  }
-  if (filters.startDate) {
-    params.set("start_date", filters.startDate);
-  }
-  if (filters.endDate) {
-    params.set("end_date", filters.endDate);
-  }
+  if (filters.status) params.set("status", filters.status);
+  if (filters.startDate) params.set("start_date", filters.startDate);
+  if (filters.endDate) params.set("end_date", filters.endDate);
 
-  const query = params.toString();
-  const endpoint = query ? `/admin/reports?${query}` : "/admin/reports";
+  const endpoint = `/admin/reports${params.toString() ? "?" + params.toString() : ""}`;
   const response = await apiFetch<ReportListResponse>(endpoint, {
     method: "GET",
     token,
@@ -128,9 +110,6 @@ export async function getAdminReports(
   return response.data;
 }
 
-/**
- * Admin mengupdate status atau menugaskan petugas
- */
 export async function updateAdminReport(
   token: string,
   reportID: string,
@@ -145,9 +124,6 @@ export async function updateAdminReport(
   return response.data;
 }
 
-/**
- * Petugas (Officer) melihat daftar laporan yang ditugaskan kepadanya
- */
 export async function getOfficerReports(
   token: string,
   status?: ReportStatus,
@@ -164,9 +140,6 @@ export async function getOfficerReports(
   return response.data;
 }
 
-/**
- * Petugas menandai laporan sebagai selesai
- */
 export async function completeOfficerReport(
   token: string,
   reportID: string,
