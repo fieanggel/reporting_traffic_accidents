@@ -36,7 +36,7 @@ type createReportRequest struct {
 
 type presignUploadRequest struct {
 	FileName    string `json:"fileName" binding:"required"`
-	ContentType string `json:"contentType"`
+	ContentType string `json:"contentType" binding:"required"`
 }
 
 func NewReportController(reportRepo repositories.ReportRepository, userRepo repositories.UserRepository) *ReportController {
@@ -50,7 +50,7 @@ func NewReportController(reportRepo repositories.ReportRepository, userRepo repo
 func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	var req presignUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "payload tidak valid"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "payload tidak valid (fileName & contentType wajib)"})
 		return
 	}
 
@@ -63,7 +63,6 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 		)),
 	)
 	if err != nil {
-		fmt.Println("AWS Config Error:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"message": "Gagal konfigurasi AWS"})
 		return
 	}
@@ -72,9 +71,10 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	presignClient := s3.NewPresignClient(s3Client)
 	bucket := os.Getenv("AWS_S3_BUCKET_NAME")
 	
-	// Backend yang bertanggung jawab atas folder 'reports/'
+	// Tambahkan folder 'reports/' secara otomatis
 	key := "reports/" + req.FileName
 
+	// KRUSIAL: ContentType harus sama persis dengan yang dikirim frontend nanti
 	presignedReq, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
@@ -146,7 +146,6 @@ func (r *ReportController) CompleteAssignedReport(c *gin.Context) {
 
 func (r *ReportController) DirectUpload(c *gin.Context) {}
 
-// HELPERS
 func ParseUintParam(param string) (uint, error) {
 	parsed, err := strconv.ParseUint(param, 10, 32)
 	return uint(parsed), err
