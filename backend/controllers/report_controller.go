@@ -46,11 +46,10 @@ func NewReportController(reportRepo repositories.ReportRepository, userRepo repo
 	}
 }
 
-// RequestUploadURL: Menghasilkan link S3 asli
 func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	var req presignUploadRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "payload tidak valid (fileName & contentType wajib)"})
+		c.JSON(http.StatusBadRequest, gin.H{"message": "payload tidak valid"})
 		return
 	}
 
@@ -70,11 +69,8 @@ func (r *ReportController) RequestUploadURL(c *gin.Context) {
 	s3Client := s3.NewFromConfig(cfg)
 	presignClient := s3.NewPresignClient(s3Client)
 	bucket := os.Getenv("AWS_S3_BUCKET_NAME")
-	
-	// Tambahkan folder 'reports/' secara otomatis
 	key := "reports/" + req.FileName
 
-	// KRUSIAL: ContentType harus sama persis dengan yang dikirim frontend nanti
 	presignedReq, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
 		Bucket:      aws.String(bucket),
 		Key:         aws.String(key),
@@ -117,8 +113,6 @@ func (r *ReportController) CreateReport(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, gin.H{"message": "Laporan berhasil dibuat", "data": report})
 }
-
-// --- FUNGSI ADMIN & OFFICER ---
 
 func (r *ReportController) GetAllReportsAdmin(c *gin.Context) {
 	reports, err := r.reportRepo.FindAll("", nil, nil)

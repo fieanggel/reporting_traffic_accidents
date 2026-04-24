@@ -12,12 +12,12 @@ import (
 
 func main() {
 	if err := godotenv.Load(); err != nil {
-		log.Println(".env tidak ditemukan, akan gunakan environment dari sistem")
+		log.Println(".env tidak ditemukan, menggunakan environment sistem")
 	}
 
 	db, err := config.ConnectDatabase()
 	if err != nil {
-		log.Fatalf("gagal koneksi database: %v", err)
+		log.Fatalf("Gagal koneksi database: %v", err)
 	}
 
 	jwtSecret := os.Getenv("JWT_SECRET")
@@ -25,15 +25,13 @@ func main() {
 		log.Fatal("JWT_SECRET wajib diisi")
 	}
 
-	// Setup Router
 	router := routes.SetupRouter(db, jwtSecret)
 
-	port := getEnv("PORT", "8080")
+	port := getEnv("PORT", "4000")
 	log.Printf("ResponCepat backend berjalan di port :%s", port)
     
-	// Gunakan 0.0.0.0 agar bisa diakses dari network luar (IP 98.80.x.x kamu)
 	if err := router.Run("0.0.0.0:" + port); err != nil {
-		log.Fatalf("gagal menjalankan server: %v", err)
+		log.Fatalf("Gagal menjalankan server: %v", err)
 	}
 }
 

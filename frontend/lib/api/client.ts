@@ -1,5 +1,5 @@
-export const API_BASE_URL = "http://98.80.187.179:3000/api";
-export const API_ORIGIN = "http://98.80.187.179:3000";
+export const API_BASE_URL = "http://98.80.187.179:4000/api";
+export const API_ORIGIN = "http://98.80.187.179:4000";
 
 export class ApiError extends Error {
   status: number;
@@ -22,8 +22,11 @@ export async function apiFetch<T>(
   options: ApiFetchOptions = {},
 ): Promise<T> {
   const { token, headers, ...requestInit } = options;
-  const resolvedPath = path.startsWith("/") ? path : `/${path}`;
-  const finalUrl = `${API_BASE_URL}${resolvedPath}`;
+  
+  // FIX: Jika path dimulai dengan http (seperti link S3), gunakan URL tersebut secara utuh
+  const finalUrl = path.startsWith("http") 
+    ? path 
+    : `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 
   const finalHeaders = new Headers(headers);
   if (token) {
@@ -65,19 +68,9 @@ export async function apiFetch<T>(
 
 export function resolveMediaURL(url?: string | null) {
   if (!url) return "";
-  
-  // Jika URL sudah dari S3 (https://...) langsung tampilkan
   if (/^https?:\/\//i.test(url)) return url;
-
-  // Jika URL berupa path lokal (fall-back)
   const cleanUrl = url.startsWith("/") ? url : `/${url}`;
   return `${API_ORIGIN}${cleanUrl}`;
-}
-
-export function getErrorMessage(error: unknown, fallback: string) {
-  if (error instanceof ApiError) return error.message;
-  if (error instanceof Error && error.message) return error.message;
-  return fallback;
 }
 
 function parseResponseBody(rawBody: string): unknown {
