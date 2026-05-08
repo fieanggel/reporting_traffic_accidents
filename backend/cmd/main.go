@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Gagal koneksi database: %v", err)
 	}
-	log.Println("✅ Database connected successfully") // TAMBAHAN
+	log.Println("✅ Database connected successfully")
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
@@ -28,9 +28,9 @@ func main() {
 
 	router := routes.SetupRouter(db, jwtSecret)
 
-	// FIX: Ubah fallback port dari 4000 ke 8080 (sesuai Dockerfile & ECS)
+	// FIX: Gunakan port 8080 (sinkron dengan Dockerfile dan ECS)
 	port := getEnv("PORT", "8080")
-	log.Printf("🚀 ResponCepat backend berjalan di port :%s", port)
+	log.Printf("🚀 Backend berjalan di port :%s", port)
 
 	if err := router.Run("0.0.0.0:" + port); err != nil {
 		log.Fatalf("Gagal menjalankan server: %v", err)
