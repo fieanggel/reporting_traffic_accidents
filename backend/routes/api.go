@@ -100,7 +100,7 @@ func parseAllowedOrigins() []string {
 		return []string{
 			"http://localhost:3000", 
 			"http://127.0.0.1:3000",
-			"http://98.80.187.179:3000", // TAMBAHKAN IP INI (Sesuai screenshot)
+			"http://alb-difie-1157039190.us-east-1.elb.amazonaws.com", // TAMBAHKAN IP INI (Sesuai screenshot)
 		}
 	}
 	
