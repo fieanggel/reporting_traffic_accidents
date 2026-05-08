@@ -9,7 +9,8 @@ import {
   createPublicReport,
   type ReportCategory,
 } from "@/lib/api/report-service";
-import { uploadFileToS3 } from "@/lib/s3/upload-service";
+// CHANGE: Ganti dari S3 ke Cloudinary
+import { uploadToCloudinary } from "@/lib/cloudinary/upload-service";
 
 const LocationPickerMap = dynamic(
   () => import("./report/LocationPickerMap"),
@@ -79,7 +80,8 @@ export default function ReportForm() {
     try {
       let imageURL = "";
       if (photoFile) {
-        imageURL = await uploadFileToS3(photoFile);
+        // CHANGE: Upload ke Cloudinary (bukan S3)
+        imageURL = await uploadToCloudinary(photoFile);
       }
 
       const report = await createPublicReport({

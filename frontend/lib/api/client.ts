@@ -1,3 +1,4 @@
+// frontend/lib/api/client.ts
 
 export const API_BASE_URL = "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com/api";
 export const API_ORIGIN = "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com";
@@ -24,7 +25,7 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { token, headers, ...requestInit } = options;
   
-  // FIX: Jika path sudah berisi URL lengkap (seperti link S3), gunakan langsung.
+  // FIX: Jika path sudah berisi URL lengkap (seperti link Cloudinary), gunakan langsung.
   // Jika hanya path API (seperti /auth/login), tambahkan API_BASE_URL.
   const finalUrl = path.startsWith("http") 
     ? path 
@@ -79,12 +80,15 @@ export function getErrorMessage(error: unknown, fallback: string): string {
 
 /**
  * Mengubah path gambar menjadi URL yang bisa ditampilkan di <img> tag
+ * Untuk Cloudinary (sudah https), langsung return tanpa tambahan prefix
  */
 export function resolveMediaURL(url?: string | null) {
   if (!url) return "";
-  if (/^https?:\/\//i.test(url)) return url; // Jika sudah URL S3, biarkan
+  // Cloudinary URL (https://res.cloudinary.com/...) langsung return
+  if (url.startsWith("http")) return url;
+  // Fallback untuk path lokal (jika ada)
   const cleanUrl = url.startsWith("/") ? url : `/${url}`;
-  return `${API_ORIGIN}${cleanUrl}`; // Jika path lokal, gunakan IP Frontend sebagai origin
+  return `${API_ORIGIN}${cleanUrl}`;
 }
 
 function parseResponseBody(rawBody: string): unknown {
