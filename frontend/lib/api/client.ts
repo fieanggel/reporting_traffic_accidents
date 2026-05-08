@@ -3,9 +3,9 @@
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
   ?? "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com/api";
 
-export const API_ORIGIN = process.env.NEXT_PUBLIC_API_URL
-  ? process.env.NEXT_PUBLIC_API_URL.replace("/api", "")
-  : "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL 
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api`
+  : "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com/api";
   
 export class ApiError extends Error {
   status: number;
