@@ -1,6 +1,6 @@
-// IP Publik EC2 Frontend port 3000 sebagai pintu gerbang (Reverse Proxy)
-export const API_BASE_URL = "http://98.80.187.179:3000/api";
-export const API_ORIGIN = "http://98.80.187.179:3000";
+
+export const API_BASE_URL = "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com/api";
+export const API_ORIGIN = "http://alb-difie-1157039190.us-east-1.elb.amazonaws.com";
 
 export class ApiError extends Error {
   status: number;
