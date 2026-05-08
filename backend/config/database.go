@@ -33,8 +33,9 @@ func ConnectDatabase() (*gorm.DB, error) {
 		return nil, fmt.Errorf("DB_PASSWORD or DB_PASS environment variable is required")
 	}
 
-	// Step 1: Koneksi ke MySQL server (tanpa database)
-	dsnRoot := fmt.Sprintf("%s:%s@tcp(%s:%s)/?charset=utf8mb4&parseTime=True&loc=Local",
+	// Step 1: Koneksi ke MySQL server (gunakan database 'mysql' sebagai anchor)
+	fmt.Printf("🔍 Menghubungkan ke MySQL Server di %s:%s...\n", dbHost, dbPort)
+	dsnRoot := fmt.Sprintf("%s:%s@tcp(%s:%s)/mysql?charset=utf8mb4&parseTime=True&loc=Local",
 		dbUser, dbPass, dbHost, dbPort)
 
 	rootDB, err := gorm.Open(mysql.Open(dsnRoot), &gorm.Config{})
@@ -43,28 +44,28 @@ func ConnectDatabase() (*gorm.DB, error) {
 	}
 
 	// Step 2: Cek apakah database sudah ada
-	var dbExists bool
+	var dbExistsName string
 	checkQuery := fmt.Sprintf("SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '%s'", dbName)
-	if err := rootDB.Raw(checkQuery).Scan(&dbExists).Error; err != nil {
-		fmt.Printf("⚠️ Warning: Failed to check database existence: %v\n", err)
-	}
+	rootDB.Raw(checkQuery).Scan(&dbExistsName)
 
 	// Step 3: Buat database jika belum ada
-	if !dbExists {
+	if dbExistsName == "" {
+		fmt.Printf("🏗️ Database '%s' tidak ditemukan, mencoba membuat...\n", dbName)
 		createDBQuery := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", dbName)
 		if err := rootDB.Exec(createDBQuery).Error; err != nil {
-			// Fallback: Coba tanpa backtick
-			createDBQuery2 := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS %s CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", dbName)
-			if err2 := rootDB.Exec(createDBQuery2).Error; err2 != nil {
-				return nil, fmt.Errorf("failed to create database '%s': %v (first attempt: %v)", dbName, err2, err)
-			}
+			return nil, fmt.Errorf("failed to create database '%s': %v", dbName, err)
 		}
-		fmt.Printf("✅ Database '%s' berhasil dibuat\n", dbName)
+		fmt.Printf("✅ Database '%s' berhasil dibuat atau sudah ada\n", dbName)
 	} else {
-		fmt.Printf("ℹ️ Database '%s' sudah ada\n", dbName)
+		fmt.Printf("ℹ️ Database '%s' sudah tersedia\n", dbName)
 	}
 
-	// Step 4: Koneksi ke database yang sudah ada
+	// Close root connection
+	sqlDB, _ := rootDB.DB()
+	sqlDB.Close()
+
+	// Step 4: Koneksi ke database utama
+	fmt.Printf("🚀 Menghubungkan ke database '%s'...\n", dbName)
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 		dbUser, dbPass, dbHost, dbPort, dbName)
 
@@ -73,7 +74,7 @@ func ConnectDatabase() (*gorm.DB, error) {
 		return nil, fmt.Errorf("failed to connect to database '%s': %w", dbName, err)
 	}
 
-	// Step 5: AutoMigrate (bikin tabel)
+	// Step 5: AutoMigrate
 	fmt.Println("🔄 Menjalankan AutoMigrate...")
 	if err := db.AutoMigrate(&models.User{}, &models.Report{}); err != nil {
 		return nil, fmt.Errorf("failed to auto migrate: %w", err)
