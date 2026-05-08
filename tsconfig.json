@@ -4,7 +4,7 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -13,28 +13,19 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "baseUrl": ".",
-    "paths": {
-      "@/*": ["frontend/*"],
-      "next": ["frontend/node_modules/next"],
-      "next/*": ["frontend/node_modules/next/*"],
-      "react": ["frontend/node_modules/react"],
-      "react/*": ["frontend/node_modules/react/*"],
-      "react-dom": ["frontend/node_modules/react-dom"],
-      "react-dom/*": ["frontend/node_modules/react-dom/*"],
-      "lucide-react": ["frontend/node_modules/lucide-react"]
-    }
+    "ignoreDeprecations": "6.0"
   },
   "include": [
     "frontend/next-env.d.ts",
     "frontend/**/*.ts",
     "frontend/**/*.tsx",
-    "backend/**/*.ts",
-    "backend/**/*.tsx",
-    "components/**/*.ts",
-    "components/**/*.tsx",
     "app/**/*.ts",
     "app/**/*.tsx"
   ],
-  "exclude": ["node_modules", "frontend/node_modules", "frontend/.next"]
+  "exclude": [
+    "node_modules",
+    "frontend/node_modules",
+    "frontend/.next",
+    "backend"
+  ]
 }

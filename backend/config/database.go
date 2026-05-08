@@ -15,42 +15,73 @@ func ConnectDatabase() (*gorm.DB, error) {
 	dbHost := getEnv("DB_HOST", "127.0.0.1")
 	dbPort := getEnv("DB_PORT", "3306")
 	dbUser := getEnv("DB_USER", "root")
-	dbPass := os.Getenv("DB_PASS")
+	
+	// FIX 1: Support DB_PASSWORD dan DB_PASS (backward compatible)
+	dbPass := os.Getenv("DB_PASSWORD")
+	if dbPass == "" {
+		dbPass = os.Getenv("DB_PASS")
+	}
+	
+	// FIX 2: Filter DB_NAME yang tidak valid
 	dbName := getEnv("DB_NAME", "reportkecelakaan")
+	if dbName == "-" || dbName == "" {
+		dbName = "reportkecelakaan"
+	}
 
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", dbUser, dbPass, dbHost, dbPort, dbName)
+	// FIX 3: Validasi password tidak boleh kosong
+	if dbPass == "" {
+		return nil, fmt.Errorf("DB_PASSWORD environment variable is required")
+	}
+
+	// Koneksi ke MySQL tanpa pilih database
+	dsnRoot := fmt.Sprintf("%s:%s@tcp(%s:%s)/?charset=utf8mb4&parseTime=True&loc=Local", 
+		dbUser, dbPass, dbHost, dbPort)
+	
+	rootDB, err := gorm.Open(mysql.Open(dsnRoot), &gorm.Config{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to MySQL server: %w", err)
+	}
+
+	// Create database jika belum ada
+	createDBQuery := fmt.Sprintf("CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci", dbName)
+	if err := rootDB.Exec(createDBQuery).Error; err != nil {
+		return nil, fmt.Errorf("failed to create database: %w", err)
+	}
+
+	// Koneksi ke database
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local", 
+		dbUser, dbPass, dbHost, dbPort, dbName)
 
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		return nil, err
 	}
 
-	// Jalankan AutoMigrate
+	// AutoMigrate
 	if err := db.AutoMigrate(&models.User{}, &models.Report{}); err != nil {
 		return nil, err
 	}
 
-	// Panggil fungsi seeding setelah migrate selesai
+	// Seed admin
 	seedAdmin(db)
 
 	return db, nil
 }
 
-// Fungsi Internal untuk membuat Akun Admin Otomatis
 func seedAdmin(db *gorm.DB) {
 	var admin models.User
-	// Cek apakah username 'admin' sudah ada di tabel users
 	err := db.Where("username = ?", "admin").First(&admin).Error
 
-	if err != nil { // Jika error (artinya user tidak ditemukan)
+	if err != nil {
 		hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 		
 		newAdmin := models.User{
 			Name:     "Super Admin",
 			Username: "admin",
 			Password: string(hashedPassword),
-			// Pastikan di model/user.go tipe Role adalah models.UserRole
-			Role:     models.RoleAdmin, 
+			Role:     models.RoleAdmin,
+			// Hanya tambahkan Email jika field Email ada di model User
+			// Email: "admin@infraalert.com",
 		}
 
 		if err := db.Create(&newAdmin).Error; err != nil {
