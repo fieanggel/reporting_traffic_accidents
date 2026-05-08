@@ -30,18 +30,40 @@ jobs:
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Clean Docker cache
+        run: |
+          docker builder prune -af
+          docker system prune -af
+
       - name: Build, tag, and push backend
         run: |
-          docker build --no-cache -t ${{ env.ECR_REPOSITORY_BACKEND }} ./backend
+          docker build \
+            --no-cache \
+            --pull \
+            --platform linux/amd64 \
+            -t ${{ env.ECR_REPOSITORY_BACKEND }}:latest \
+            ./backend
+          
           docker tag ${{ env.ECR_REPOSITORY_BACKEND }}:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_BACKEND }}:latest
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_BACKEND }}:latest
 
       - name: Build, tag, and push frontend
         run: |
-          docker build --no-cache --build-arg NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" -t ${{ env.ECR_REPOSITORY_FRONTEND }} ./frontend
+          docker build \
+            --no-cache \
+            --pull \
+            --platform linux/amd64 \
+            --build-arg NEXT_PUBLIC_API_URL="${{ vars.NEXT_PUBLIC_API_URL }}" \
+            -t ${{ env.ECR_REPOSITORY_FRONTEND }}:latest \
+            ./frontend
+          
           docker tag ${{ env.ECR_REPOSITORY_FRONTEND }}:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
 
       - name: Force new deployment
         run: |
-          aws ecs update-service --cluster ${{ env.ECS_CLUSTER }} --service ${{ env.ECS_SERVICE }} --force-new-deployment --region ${{ env.AWS_REGION }}
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}

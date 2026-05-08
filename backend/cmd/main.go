@@ -19,7 +19,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Gagal koneksi database: %v", err)
 	}
-	log.Println("✅ Database connected successfully")
+	log.Println("🚀 DATABASE_CONNECTED_SUCCESSFULLY_V2")
 
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
