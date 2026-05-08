@@ -60,10 +60,34 @@ jobs:
           docker tag ${{ env.ECR_REPOSITORY_FRONTEND }}:latest ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
           docker push ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY_FRONTEND }}:latest
 
-      - name: Force new deployment
+      - name: Force new deployment with fresh image pull
         run: |
+          # Update service dengan force deployment
           aws ecs update-service \
             --cluster ${{ env.ECS_CLUSTER }} \
             --service ${{ env.ECS_SERVICE }} \
             --force-new-deployment \
             --region ${{ env.AWS_REGION }}
+          
+          # Tunggu 5 detik lalu restart task (opsional, untuk memastikan image baru ditarik)
+          sleep 5
+          
+          # Dapatkan task ARN yang sedang running
+          TASK_ARN=$(aws ecs list-tasks \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service-name ${{ env.ECS_SERVICE }} \
+            --desired-status RUNNING \
+            --region ${{ env.AWS_REGION }} \
+            --query 'taskArns[0]' \
+            --output text)
+          
+          # Stop task lama agar ECS menarik image terbaru
+          if [ "$TASK_ARN" != "None" ] && [ -n "$TASK_ARN" ]; then
+            aws ecs stop-task \
+              --cluster ${{ env.ECS_CLUSTER }} \
+              --task "$TASK_ARN" \
+              --region ${{ env.AWS_REGION }} || true
+            echo "Task lama dihentikan, ECS akan membuat task baru dengan image fresh"
+          else
+            echo "Tidak ada task running yang ditemukan"
+          fi
